@@ -11,6 +11,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
+val DarkBlueColorScheme = darkColorScheme(
+    primary = Color(0xFF3B82F6),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF1E3A8A),
+    onPrimaryContainer = Color(0xFFDBEAFE),
+    secondary = Color(0xFF10B981),
+    onSecondary = Color.White,
+    background = Color(0xFF0F172A),
+    onBackground = Color(0xFFF8FAFC),
+    surface = Color(0xFF1E293B),
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = Color(0xFF334155),
+    onSurfaceVariant = Color(0xFF94A3B8),
+    outline = Color(0xFF475569),
+    error = Color(0xFFEF4444),
+    onError = Color.White,
+)
+
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFFB8C3FF),
     onPrimary = Color(0xFF00105C),
@@ -35,6 +53,7 @@ private val LightColorScheme = lightColorScheme(
     onBackground = AuthTextPrimary,
     surface = Color.White,
     onSurface = AuthTextPrimary,
+    onSurfaceVariant = AuthTextSecondary,
     error = Color(0xFFB3261E),
     onError = Color.White,
 )

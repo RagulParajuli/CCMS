@@ -1,5 +1,7 @@
 package com.ragul.ccms.feature.records.presentation
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -70,6 +72,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,12 +82,14 @@ import com.ragul.ccms.feature.auth.domain.AuthProvider
 import com.ragul.ccms.feature.auth.domain.AuthUser
 import com.ragul.ccms.feature.auth.presentation.AuthUiState
 import com.ragul.ccms.feature.auth.presentation.MessageBanner
+import com.ragul.ccms.feature.records.data.HistoryEntity
+import com.ragul.ccms.feature.records.data.LoanDepositEntity
+import com.ragul.ccms.feature.records.data.MembershipEntity
+import com.ragul.ccms.feature.records.data.MonthlyDueEntity
 import com.ragul.ccms.feature.records.data.RecordCounts
-import com.ragul.ccms.ui.theme.AuthBackground
 import com.ragul.ccms.ui.theme.AuthPrimary
 import com.ragul.ccms.ui.theme.AuthPrimaryDark
-import com.ragul.ccms.ui.theme.AuthTextPrimary
-import com.ragul.ccms.ui.theme.AuthTextSecondary
+import com.ragul.ccms.ui.theme.DarkBlueColorScheme
 import com.ragul.ccms.ui.theme.RecordLoanDeposit
 import com.ragul.ccms.ui.theme.RecordMembership
 import com.ragul.ccms.ui.theme.RecordMonthlyDue
@@ -114,6 +119,66 @@ fun DashboardScreen(
     val history by viewModel.history.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
+    MaterialTheme(colorScheme = DarkBlueColorScheme) {
+        DashboardContent(
+            user = user,
+            authState = authState,
+            counts = counts,
+            memberships = memberships,
+            loanDeposits = loanDeposits,
+            monthlyDues = monthlyDues,
+            history = history,
+            message = message,
+            onSignOut = onSignOut,
+            onResendVerification = onResendVerification,
+            onSaveMembership = viewModel::saveMembership,
+            onDeleteMembership = viewModel::deleteMembership,
+            onSaveLoanDeposit = viewModel::saveLoanDeposit,
+            onDeleteLoanDeposit = viewModel::deleteLoanDeposit,
+            onSaveMonthlyDue = viewModel::saveMonthlyDue,
+            onDeleteMonthlyDue = viewModel::deleteMonthlyDue,
+            onClearHistory = viewModel::clearHistory,
+            onMessageShown = viewModel::messageShown,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+fun DashboardContent(
+    user: AuthUser,
+    authState: AuthUiState,
+    counts: RecordCounts,
+    memberships: List<MembershipEntity>,
+    loanDeposits: List<LoanDepositEntity>,
+    monthlyDues: List<MonthlyDueEntity>,
+    history: List<HistoryEntity>,
+    message: String?,
+    onSignOut: () -> Unit,
+    onResendVerification: () -> Unit,
+    onSaveMembership: (
+        MembershipEntity?,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+    ) -> Unit,
+    onDeleteMembership: (MembershipEntity) -> Unit,
+    onSaveLoanDeposit: (LoanDepositEntity?, Long, Boolean, String, Double, String) -> Unit,
+    onDeleteLoanDeposit: (LoanDepositEntity) -> Unit,
+    onSaveMonthlyDue: (MonthlyDueEntity?, Long, String, String, Double, Boolean, String) -> Unit,
+    onDeleteMonthlyDue: (MonthlyDueEntity) -> Unit,
+    onClearHistory: () -> Unit,
+    onMessageShown: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -130,7 +195,7 @@ fun DashboardScreen(
     LaunchedEffect(message) {
         message?.let {
             snackbarHostState.showSnackbar(it)
-            viewModel.messageShown()
+            onMessageShown()
         }
     }
 
@@ -147,7 +212,7 @@ fun DashboardScreen(
 
         val screen: @Composable () -> Unit = {
             Scaffold(
-                containerColor = AuthBackground,
+                containerColor = MaterialTheme.colorScheme.background,
                 topBar = {
                     DashboardTopBar(
                         section = section,
@@ -175,27 +240,29 @@ fun DashboardScreen(
 
                         DashboardSection.MEMBERSHIP -> MembershipSection(
                             memberships = memberships,
-                            onSave = viewModel::saveMembership,
-                            onDelete = viewModel::deleteMembership,
+                            onSave = onSaveMembership,
+                            onDelete = onDeleteMembership,
                         )
 
                         DashboardSection.LOAN_DEPOSIT -> LoanDepositSection(
                             loanDeposits = loanDeposits,
-                            onSave = viewModel::saveLoanDeposit,
-                            onDelete = viewModel::deleteLoanDeposit,
+                            memberships = memberships,
+                            onSave = onSaveLoanDeposit,
+                            onDelete = onDeleteLoanDeposit,
                         )
 
                         DashboardSection.MONTHLY_DUE -> MonthlyDueSection(
                             monthlyDues = monthlyDues,
-                            onSave = viewModel::saveMonthlyDue,
-                            onDelete = viewModel::deleteMonthlyDue,
+                            memberships = memberships,
+                            onSave = onSaveMonthlyDue,
+                            onDelete = onDeleteMonthlyDue,
                         )
 
                         DashboardSection.ABOUT -> AboutSection(user = user, counts = counts)
 
                         DashboardSection.HISTORY -> HistorySection(
                             history = history,
-                            onClear = viewModel::clearHistory,
+                            onClear = onClearHistory,
                         )
                     }
                 }
@@ -205,7 +272,10 @@ fun DashboardScreen(
         if (usePermanentDrawer) {
             PermanentNavigationDrawer(
                 drawerContent = {
-                    PermanentDrawerSheet(modifier = Modifier.width(300.dp)) {
+                    PermanentDrawerSheet(
+                        drawerContainerColor = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.width(300.dp),
+                    ) {
                         DrawerBody(
                             user = user,
                             selected = section,
@@ -221,7 +291,10 @@ fun DashboardScreen(
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
-                    ModalDrawerSheet(modifier = Modifier.widthIn(max = 320.dp)) {
+                    ModalDrawerSheet(
+                        drawerContainerColor = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.widthIn(max = 320.dp),
+                    ) {
                         DrawerBody(
                             user = user,
                             selected = section,
@@ -246,8 +319,7 @@ private fun DashboardTopBar(
     onProfile: () -> Unit,
 ) {
     Surface(
-        color = Color.White,
-        shadowElevation = 2.dp,
+        color = MaterialTheme.colorScheme.background,
     ) {
         Row(
             modifier = Modifier
@@ -262,32 +334,18 @@ private fun DashboardTopBar(
                     Icon(
                         imageVector = Icons.Outlined.Menu,
                         contentDescription = "Open navigation",
-                        tint = AuthTextPrimary,
+                        tint = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             } else {
                 Spacer(modifier = Modifier.width(8.dp))
             }
-
-            Image(
-                painter = painterResource(id = R.drawable.ic_leaf),
-                contentDescription = null,
-                modifier = Modifier.size(28.dp),
+            Text(
+                text = section.title,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = section.title,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AuthTextPrimary,
-                )
-                Text(
-                    text = "CCMS",
-                    fontSize = 11.sp,
-                    color = AuthTextSecondary,
-                )
-            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -342,12 +400,12 @@ private fun DrawerBody(
                     text = "CCMS",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AuthTextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = "Community records",
                     fontSize = 12.sp,
-                    color = AuthTextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -382,14 +440,14 @@ private fun DrawerBody(
                         text = user.friendlyName,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = AuthTextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = user.email ?: "Signed in",
                         fontSize = 11.sp,
-                        color = AuthTextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -412,7 +470,7 @@ private fun DrawerBody(
             modifier = Modifier.padding(horizontal = 14.dp),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = AuthTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 1.sp,
         )
 
@@ -422,8 +480,8 @@ private fun DrawerBody(
             selectedContainerColor = AuthPrimary.copy(alpha = 0.12f),
             selectedIconColor = AuthPrimary,
             selectedTextColor = AuthPrimary,
-            unselectedIconColor = AuthTextSecondary,
-            unselectedTextColor = AuthTextPrimary,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurface,
         )
 
         DashboardSection.entries.forEach { item ->
@@ -454,7 +512,7 @@ private fun DrawerBody(
                                 color = if (item == selected) {
                                     AuthPrimary
                                 } else {
-                                    AuthTextSecondary.copy(alpha = 0.1f)
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
                                 },
                                 shape = RoundedCornerShape(50),
                             ) {
@@ -463,7 +521,7 @@ private fun DrawerBody(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (item == selected) Color.White else AuthTextSecondary,
+                                    color = if (item == selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
@@ -486,7 +544,7 @@ private fun DrawerBody(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        HorizontalDivider(color = AuthTextSecondary.copy(alpha = 0.15f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f))
         Spacer(modifier = Modifier.height(8.dp))
 
         NavigationDrawerItem(
@@ -501,8 +559,8 @@ private fun DrawerBody(
             selected = false,
             onClick = onSignOut,
             colors = NavigationDrawerItemDefaults.colors(
-                unselectedIconColor = Color(0xFFB71C1C),
-                unselectedTextColor = Color(0xFFB71C1C),
+                unselectedIconColor = Color(0xFFF87171),
+                unselectedTextColor = Color(0xFFF87171),
             ),
             shape = RoundedCornerShape(12.dp),
         )
@@ -512,7 +570,7 @@ private fun DrawerBody(
             text = "Records are stored on this device",
             modifier = Modifier.padding(horizontal = 14.dp),
             fontSize = 10.sp,
-            color = AuthTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -573,7 +631,7 @@ private fun DashboardHome(
                 Text(
                     text = if (counts.total == 1) "1 record" else "${counts.total} records",
                     fontSize = 12.sp,
-                    color = AuthTextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -729,7 +787,7 @@ private fun CountCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
@@ -755,12 +813,12 @@ private fun CountCard(
                     text = label,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = AuthTextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = AuthTextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
@@ -773,14 +831,14 @@ private fun CountCard(
                 Text(
                     text = if (count == 1) "record" else "records",
                     fontSize = 11.sp,
-                    color = AuthTextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 imageVector = Icons.Outlined.ChevronRight,
                 contentDescription = null,
-                tint = AuthTextSecondary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -801,7 +859,7 @@ private fun BottomLinkCard(
             .height(112.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(
@@ -828,7 +886,7 @@ private fun BottomLinkCard(
                 Icon(
                     imageVector = Icons.Outlined.ChevronRight,
                     contentDescription = null,
-                    tint = AuthTextSecondary,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -837,14 +895,55 @@ private fun BottomLinkCard(
                     text = title,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = AuthTextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = subtitle,
                     fontSize = 11.sp,
-                    color = AuthTextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun DashboardScreenPreview() {
+    MaterialTheme(colorScheme = DarkBlueColorScheme) {
+        DashboardContent(
+            user = AuthUser(
+                uid = "preview-user",
+                email = "alex@example.com",
+                displayName = "Alex Morgan",
+                photoUrl = null,
+                isEmailVerified = true,
+                provider = AuthProvider.PASSWORD,
+            ),
+            authState = AuthUiState(
+                isInitializing = false,
+                isConfigured = true,
+            ),
+            counts = RecordCounts(
+                memberships = 12,
+                loanDeposits = 5,
+                monthlyDues = 8,
+            ),
+            memberships = emptyList(),
+            loanDeposits = emptyList(),
+            monthlyDues = emptyList(),
+            history = emptyList(),
+            message = null,
+            onSignOut = {},
+            onResendVerification = {},
+            onSaveMembership = { _, _, _, _, _, _, _, _, _, _, _, _ -> },
+            onDeleteMembership = {},
+            onSaveLoanDeposit = { _, _, _, _, _, _ -> },
+            onDeleteLoanDeposit = {},
+            onSaveMonthlyDue = { _, _, _, _, _, _, _ -> },
+            onDeleteMonthlyDue = {},
+            onClearHistory = {},
+            onMessageShown = {},
+        )
     }
 }

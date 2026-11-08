@@ -1,5 +1,7 @@
 package com.ragul.ccms.feature.records.presentation
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,12 +39,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragul.ccms.feature.records.data.HistoryEntity
 import com.ragul.ccms.feature.records.data.RecordsRepository
-import com.ragul.ccms.ui.theme.AuthTextPrimary
-import com.ragul.ccms.ui.theme.AuthTextSecondary
+import com.ragul.ccms.ui.theme.CCMSTheme
 import com.ragul.ccms.ui.theme.RecordMembership
 
 @Composable
@@ -118,6 +120,14 @@ fun HistorySection(
     }
 }
 
+@PreviewLightDark
+@Composable
+private fun HistorySectionPreview() {
+    CCMSTheme {
+        HistorySection(history = emptyList(), onClear = {})
+    }
+}
+
 @Composable
 private fun HistoryCard(entry: HistoryEntity) {
     val (icon, color) = when (entry.action) {
@@ -129,7 +139,7 @@ private fun HistoryCard(entry: HistoryEntity) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
@@ -150,17 +160,17 @@ private fun HistoryCard(entry: HistoryEntity) {
                     text = "${entry.action} · ${entry.section}",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = AuthTextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = entry.summary,
                     fontSize = 13.sp,
-                    color = AuthTextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = formatDateTime(entry.timestamp),
                     fontSize = 11.sp,
-                    color = AuthTextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

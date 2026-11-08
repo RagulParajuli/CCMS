@@ -1,6 +1,7 @@
 package com.ragul.ccms.feature.records.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,20 +21,29 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,24 +51,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragul.ccms.feature.records.data.LoanDepositEntity
+import com.ragul.ccms.feature.records.data.MembershipEntity
 import com.ragul.ccms.ui.theme.AuthPrimary
-import com.ragul.ccms.ui.theme.AuthTextPrimary
-import com.ragul.ccms.ui.theme.AuthTextSecondary
+import com.ragul.ccms.ui.theme.CCMSTheme
 import com.ragul.ccms.ui.theme.RecordLoanDeposit
 
 @Composable
 fun LoanDepositSection(
     loanDeposits: List<LoanDepositEntity>,
-    onSave: (LoanDepositEntity?, Boolean, String, Double, String) -> Unit,
+    memberships: List<MembershipEntity> = emptyList(),
+    onSave: (
+        existing: LoanDepositEntity?,
+        memberId: Long,
+        isLoan: Boolean,
+        personName: String,
+        amount: Double,
+        notes: String,
+    ) -> Unit,
     onDelete: (LoanDepositEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showForm by rememberSaveable { mutableStateOf(false) }
-    var editingId by rememberSaveable { mutableStateOf(0L) }
-    var pendingDeleteId by rememberSaveable { mutableStateOf(0L) }
+    var editingId by rememberSaveable { mutableLongStateOf(0L) }
+    var pendingDeleteId by rememberSaveable { mutableLongStateOf(0L) }
 
     val editing = loanDeposits.firstOrNull { it.id == editingId }
     val pendingDelete = loanDeposits.firstOrNull { it.id == pendingDeleteId }
@@ -133,9 +152,10 @@ fun LoanDepositSection(
         key(editingId) {
             LoanDepositFormDialog(
                 initial = editing,
+                memberships = memberships,
                 onDismiss = { showForm = false },
-                onSave = { isLoan, personName, amount, notes ->
-                    onSave(editing, isLoan, personName, amount, notes)
+                onSave = { memberId, isLoan, personName, amount, notes ->
+                    onSave(editing, memberId, isLoan, personName, amount, notes)
                     showForm = false
                 },
             )
@@ -159,7 +179,7 @@ fun LoanDepositSection(
                         pendingDeleteId = 0L
                     },
                 ) {
-                    Text(text = "Delete", color = Color(0xFFB71C1C))
+                    Text(text = "Delete", color = Color(0xFFEF4444))
                 }
             },
             dismissButton = {
@@ -168,6 +188,14 @@ fun LoanDepositSection(
                 }
             },
         )
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun LoanDepositSectionPreview() {
+    CCMSTheme {
+        LoanDepositSection(loanDeposits = emptyList(), memberships = emptyList(), onSave = { _, _, _, _, _, _ -> }, onDelete = {})
     }
 }
 
@@ -204,12 +232,12 @@ private fun SummaryBox(
         colors = CardDefaults.cardColors(containerColor = RecordLoanDeposit.copy(alpha = 0.08f)),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(text = label, fontSize = 12.sp, color = AuthTextSecondary)
+            Text(text = label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 text = value,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = AuthTextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }
@@ -224,7 +252,7 @@ private fun LoanDepositCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -243,16 +271,33 @@ private fun LoanDepositCard(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = record.personName,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = AuthTextPrimary,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = record.personName,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (record.memberId > 0) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = RecordLoanDeposit.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(50),
+                            ) {
+                                Text(
+                                    text = "ID: #${record.memberId}",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RecordLoanDeposit,
+                                )
+                            }
+                        }
+                    }
                     Text(
                         text = formatDate(record.date),
                         fontSize = 12.sp,
-                        color = AuthTextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -260,7 +305,7 @@ private fun LoanDepositCard(
                         text = formatAmount(record.amount),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AuthTextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     StatusPill(
                         text = if (record.isLoan) "Loan" else "Deposit",
@@ -271,7 +316,7 @@ private fun LoanDepositCard(
 
             if (record.notes.isNotBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))
-                Text(text = record.notes, fontSize = 13.sp, color = AuthTextSecondary)
+                Text(text = record.notes, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -287,7 +332,7 @@ private fun LoanDepositCard(
                     Icon(
                         imageVector = Icons.Outlined.DeleteOutline,
                         contentDescription = "Delete record",
-                        tint = Color(0xFFB71C1C),
+                        tint = Color(0xFFEF4444),
                     )
                 }
             }
@@ -298,10 +343,12 @@ private fun LoanDepositCard(
 @Composable
 private fun LoanDepositFormDialog(
     initial: LoanDepositEntity?,
+    memberships: List<MembershipEntity>,
     onDismiss: () -> Unit,
-    onSave: (isLoan: Boolean, personName: String, amount: Double, notes: String) -> Unit,
+    onSave: (memberId: Long, isLoan: Boolean, personName: String, amount: Double, notes: String) -> Unit,
 ) {
     var isLoan by rememberSaveable(initial?.id) { mutableStateOf(initial?.isLoan ?: true) }
+    var memberId by rememberSaveable(initial?.id) { mutableLongStateOf(initial?.memberId ?: 0L) }
     var personName by rememberSaveable(initial?.id) {
         mutableStateOf(initial?.personName.orEmpty())
     }
@@ -310,16 +357,18 @@ private fun LoanDepositFormDialog(
     }
     var notes by rememberSaveable(initial?.id) { mutableStateOf(initial?.notes.orEmpty()) }
 
+    var dropdownExpanded by remember { mutableStateOf(false) }
+
     val amount = amountText.replace(',', '.').toDoubleOrNull()
     val amountValid = amount != null && amount > 0
 
     RecordFormDialog(
-        title = if (initial == null) "Add record" else "Edit record",
+        title = if (initial == null) "Add Record" else "Edit Record",
         onDismiss = onDismiss,
-        onSave = { onSave(isLoan, personName, amount ?: 0.0, notes) },
+        onSave = { onSave(memberId, isLoan, personName, amount ?: 0.0, notes) },
         saveEnabled = personName.isNotBlank() && amountValid,
     ) {
-        Text(text = "Type", fontSize = 13.sp, color = AuthTextSecondary)
+        Text(text = "Type", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChoiceChip(
                 label = "Loan",
@@ -332,12 +381,60 @@ private fun LoanDepositFormDialog(
                 onClick = { isLoan = false },
             )
         }
-        FormTextField(
-            value = personName,
-            onValueChange = { personName = it },
-            label = "Member name *",
-            isError = personName.isBlank(),
-        )
+
+        if (memberships.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = if (memberId > 0) "#$memberId - $personName" else personName,
+                    onValueChange = {
+                        personName = it
+                        memberId = 0L
+                    },
+                    label = { Text(text = "Member Name (Select or Type) *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        IconButton(onClick = { dropdownExpanded = true }) {
+                            Icon(imageVector = Icons.Outlined.ArrowDropDown, contentDescription = "Select member")
+                        }
+                    },
+                    isError = personName.isBlank(),
+                    shape = RoundedCornerShape(10.dp),
+                )
+
+                DropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false },
+                    modifier = Modifier.fillMaxWidth(0.85f),
+                ) {
+                    memberships.forEach { m ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "#${m.memberId} - ${m.name}",
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            onClick = {
+                                memberId = m.memberId
+                                personName = m.name
+                                dropdownExpanded = false
+                            },
+                            leadingIcon = {
+                                Icon(imageVector = Icons.Outlined.Person, contentDescription = null)
+                            },
+                        )
+                    }
+                }
+            }
+        } else {
+            FormTextField(
+                value = personName,
+                onValueChange = { personName = it },
+                label = "Member Name *",
+                isError = personName.isBlank(),
+            )
+        }
+
         FormTextField(
             value = amountText,
             onValueChange = { amountText = it },
@@ -350,6 +447,7 @@ private fun LoanDepositFormDialog(
                 else -> null
             },
         )
+
         FormTextField(
             value = notes,
             onValueChange = { notes = it },

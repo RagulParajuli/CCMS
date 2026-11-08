@@ -1,5 +1,7 @@
 package com.ragul.ccms.feature.auth.presentation
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -56,8 +58,6 @@ import com.ragul.ccms.ui.theme.AuthErrorContent
 import com.ragul.ccms.ui.theme.AuthPrimary
 import com.ragul.ccms.ui.theme.AuthSuccessContainer
 import com.ragul.ccms.ui.theme.AuthSuccessContent
-import com.ragul.ccms.ui.theme.AuthTextPrimary
-import com.ragul.ccms.ui.theme.AuthTextSecondary
 import com.ragul.ccms.ui.theme.AuthWarningContainer
 import com.ragul.ccms.ui.theme.AuthWarningContent
 
@@ -70,7 +70,7 @@ fun AuthScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AuthBackground)
+            .background(MaterialTheme.colorScheme.background)
             .safeDrawingPadding()
             .imePadding(),
         contentAlignment = Alignment.Center,
@@ -98,14 +98,14 @@ fun AuthHeader(title: String, subtitle: String) {
         text = title,
         fontSize = 28.sp,
         fontWeight = FontWeight.Bold,
-        color = AuthTextPrimary,
+        color = MaterialTheme.colorScheme.onSurface,
         textAlign = TextAlign.Center,
     )
     Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = subtitle,
         fontSize = 16.sp,
-        color = AuthTextSecondary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
     )
 }
@@ -243,8 +243,8 @@ fun GoogleAuthButton(
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, AuthBorder),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color.White,
-            contentColor = AuthTextPrimary,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         contentPadding = PaddingValues(horizontal = 16.dp),
     ) {
@@ -276,15 +276,15 @@ fun OrDivider(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HorizontalDivider(modifier = Modifier.weight(1f), color = AuthTextSecondary.copy(alpha = 0.35f))
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
         Text(
             text = "or",
             modifier = Modifier.padding(horizontal = 12.dp),
-            color = AuthTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
         )
-        HorizontalDivider(modifier = Modifier.weight(1f), color = AuthTextSecondary.copy(alpha = 0.35f))
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
     }
 }
 
@@ -351,7 +351,7 @@ fun AuthFooter(
         Text(
             text = question,
             fontSize = 14.sp,
-            color = AuthTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         TextButton(onClick = onActionClick) {
             Text(

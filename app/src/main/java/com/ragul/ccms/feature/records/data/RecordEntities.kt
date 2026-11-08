@@ -1,5 +1,6 @@
 package com.ragul.ccms.feature.records.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -11,18 +12,28 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "memberships", indices = [Index("ownerId")])
 data class MembershipEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(defaultValue = "0") val memberId: Long = 0,
     val ownerId: String,
     val name: String,
+    @ColumnInfo(defaultValue = "''") val gender: String = "",
+    @ColumnInfo(defaultValue = "''") val dob: String = "",
+    @ColumnInfo(defaultValue = "''") val parentName: String = "",
+    @ColumnInfo(defaultValue = "''") val grandfatherName: String = "",
+    @ColumnInfo(defaultValue = "''") val citizenshipNumber: String = "",
+    @ColumnInfo(defaultValue = "''") val address: String = "",
     val phone: String,
+    @ColumnInfo(defaultValue = "''") val email: String = "",
     val status: String,
     val notes: String,
     val joinedOn: Long,
     val updatedAt: Long,
+    @ColumnInfo(defaultValue = "''") val syncId: String = "",
 )
 
 @Entity(tableName = "loan_deposits", indices = [Index("ownerId")])
 data class LoanDepositEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(defaultValue = "0") val memberId: Long = 0,
     val ownerId: String,
     val kind: String,
     val personName: String,
@@ -30,6 +41,7 @@ data class LoanDepositEntity(
     val notes: String,
     val date: Long,
     val updatedAt: Long,
+    @ColumnInfo(defaultValue = "''") val syncId: String = "",
 ) {
     val isLoan: Boolean get() = kind == KIND_LOAN
 
@@ -42,6 +54,7 @@ data class LoanDepositEntity(
 @Entity(tableName = "monthly_dues", indices = [Index("ownerId")])
 data class MonthlyDueEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(defaultValue = "0") val memberId: Long = 0,
     val ownerId: String,
     val title: String,
     val period: String,
@@ -50,6 +63,7 @@ data class MonthlyDueEntity(
     val notes: String,
     val dueDate: Long,
     val updatedAt: Long,
+    @ColumnInfo(defaultValue = "''") val syncId: String = "",
 )
 
 @Entity(tableName = "history", indices = [Index("ownerId")])
@@ -60,6 +74,7 @@ data class HistoryEntity(
     val action: String,
     val summary: String,
     val timestamp: Long,
+    @ColumnInfo(defaultValue = "''") val syncId: String = "",
 )
 
 /** Record totals used by the dashboard cards and the pie chart. */

@@ -7,6 +7,9 @@ CCMS uses **Firebase Authentication** for:
 - password reset emails
 - email verification emails
 
+CCMS also uses **Cloud Firestore** to synchronize records between devices. Room remains the
+offline local store used by the UI.
+
 The app compiles and runs without Firebase configured, but every auth action shows a setup
 message until you complete the steps below.
 
@@ -81,7 +84,15 @@ Rebuild after replacing the file:
 .\gradlew.bat :app:assembleDebug
 ```
 
-## 5. Google Web Client ID
+## 5. Enable Cloud Firestore
+
+Create a Firestore database in the Firebase console for the same project. Deploy Security Rules
+that allow a signed-in user to access only `users/{their uid}` and its subcollections. The app
+does not create or modify Security Rules. Records are stored in the `memberships`,
+`loanDeposits`, `monthlyDues`, and `history` collections below that user document. See
+[`DATABASE.md`](DATABASE.md) for the sync and offline behavior.
+
+## 6. Google Web Client ID
 
 Credential Manager needs an OAuth **Web** client ID. When the Firebase project has a Web
 OAuth client (Firebase creates one for the Google provider), the google-services plugin
@@ -97,7 +108,7 @@ GOOGLE_WEB_CLIENT_ID=1234567890-xxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.
 Then rebuild. The value is exposed as `BuildConfig.GOOGLE_WEB_CLIENT_ID` and used only when
 the generated resource is absent.
 
-## 6. Verify the flow
+## 7. Verify the flow
 
 1. Install the debug build on a device or emulator with Google Play services.
 2. **Email/password** — create an account, check the verification email, then sign out and

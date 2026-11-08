@@ -1,5 +1,7 @@
 package com.ragul.ccms.feature.records.presentation
 
+import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,8 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragul.ccms.feature.records.data.RecordCounts
-import com.ragul.ccms.ui.theme.AuthTextPrimary
-import com.ragul.ccms.ui.theme.AuthTextSecondary
 import com.ragul.ccms.ui.theme.RecordLoanDeposit
 import com.ragul.ccms.ui.theme.RecordMembership
 import com.ragul.ccms.ui.theme.RecordMonthlyDue
@@ -51,7 +51,7 @@ fun RecordsPieChartCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
@@ -59,7 +59,7 @@ fun RecordsPieChartCard(
                 text = "Records overview",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
-                color = AuthTextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -69,7 +69,7 @@ fun RecordsPieChartCard(
                     "Distribution of the $total records saved in this account."
                 },
                 fontSize = 13.sp,
-                color = AuthTextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -77,6 +77,7 @@ fun RecordsPieChartCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val emptyArcColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
                 Box(
                     modifier = Modifier.size(132.dp),
                     contentAlignment = Alignment.Center,
@@ -85,7 +86,7 @@ fun RecordsPieChartCard(
                         val strokeWidth = 22.dp.toPx()
                         if (total == 0) {
                             drawArc(
-                                color = Color(0xFFE3EEE4),
+                                color = emptyArcColor,
                                 startAngle = 0f,
                                 sweepAngle = 360f,
                                 useCenter = false,
@@ -112,12 +113,12 @@ fun RecordsPieChartCard(
                             text = total.toString(),
                             fontSize = 30.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AuthTextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
                             text = if (total == 1) "record" else "records",
                             fontSize = 12.sp,
-                            color = AuthTextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -140,13 +141,13 @@ fun RecordsPieChartCard(
                                 text = slice.label,
                                 modifier = Modifier.weight(1f),
                                 fontSize = 13.sp,
-                                color = AuthTextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
                                 text = slice.count.toString(),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = AuthTextPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
                     }

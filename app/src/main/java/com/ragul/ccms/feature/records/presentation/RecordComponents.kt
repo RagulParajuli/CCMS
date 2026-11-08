@@ -32,8 +32,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragul.ccms.ui.theme.AuthPrimary
-import com.ragul.ccms.ui.theme.AuthTextPrimary
-import com.ragul.ccms.ui.theme.AuthTextSecondary
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -68,7 +66,7 @@ fun PageHeader(
                 text = title,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
-                color = AuthTextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
             if (countLabel != null) {
@@ -90,7 +88,7 @@ fun PageHeader(
         Text(
             text = description,
             fontSize = 14.sp,
-            color = AuthTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -126,14 +124,14 @@ fun EmptyState(
             text = title,
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
-            color = AuthTextPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = message,
             fontSize = 14.sp,
-            color = AuthTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
     }
@@ -161,16 +159,16 @@ fun RecordFormDialog(
         },
         confirmButton = {
             TextButton(onClick = onSave, enabled = saveEnabled) {
-                Text(text = "Save", color = if (saveEnabled) AuthPrimary else AuthTextSecondary)
+                Text(text = "Save", color = if (saveEnabled) AuthPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = "Cancel", color = AuthTextSecondary)
+                Text(text = "Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         shape = RoundedCornerShape(20.dp),
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
     )
 }
 
@@ -242,7 +240,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         modifier = modifier,
         fontSize = 16.sp,
         fontWeight = FontWeight.Bold,
-        color = AuthTextPrimary,
+        color = MaterialTheme.colorScheme.onSurface,
         style = MaterialTheme.typography.titleMedium,
     )
 }

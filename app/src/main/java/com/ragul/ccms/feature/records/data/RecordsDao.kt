@@ -14,8 +14,14 @@ interface RecordsDao {
     @Query("SELECT COUNT(*) FROM memberships WHERE ownerId = :ownerId")
     fun observeMembershipCount(ownerId: String): Flow<Int>
 
+    @Query("SELECT MAX(memberId) FROM memberships WHERE ownerId = :ownerId")
+    suspend fun getMaxMemberId(ownerId: String): Long?
+
     @Upsert
     suspend fun upsertMembership(membership: MembershipEntity)
+
+    @Query("DELETE FROM memberships WHERE ownerId = :ownerId AND syncId = :syncId")
+    suspend fun deleteMembershipBySyncId(ownerId: String, syncId: String)
 
     @Query("DELETE FROM memberships WHERE id = :id AND ownerId = :ownerId")
     suspend fun deleteMembership(id: Long, ownerId: String)
@@ -29,6 +35,9 @@ interface RecordsDao {
     @Upsert
     suspend fun upsertLoanDeposit(loanDeposit: LoanDepositEntity)
 
+    @Query("DELETE FROM loan_deposits WHERE ownerId = :ownerId AND syncId = :syncId")
+    suspend fun deleteLoanDepositBySyncId(ownerId: String, syncId: String)
+
     @Query("DELETE FROM loan_deposits WHERE id = :id AND ownerId = :ownerId")
     suspend fun deleteLoanDeposit(id: Long, ownerId: String)
 
@@ -41,6 +50,9 @@ interface RecordsDao {
     @Upsert
     suspend fun upsertMonthlyDue(due: MonthlyDueEntity)
 
+    @Query("DELETE FROM monthly_dues WHERE ownerId = :ownerId AND syncId = :syncId")
+    suspend fun deleteMonthlyDueBySyncId(ownerId: String, syncId: String)
+
     @Query("DELETE FROM monthly_dues WHERE id = :id AND ownerId = :ownerId")
     suspend fun deleteMonthlyDue(id: Long, ownerId: String)
 
@@ -49,6 +61,12 @@ interface RecordsDao {
 
     @Upsert
     suspend fun insertHistory(entry: HistoryEntity)
+
+    @Query("SELECT * FROM history WHERE ownerId = :ownerId ORDER BY timestamp DESC, id DESC")
+    suspend fun getAllHistory(ownerId: String): List<HistoryEntity>
+
+    @Query("DELETE FROM history WHERE ownerId = :ownerId AND syncId = :syncId")
+    suspend fun deleteHistoryBySyncId(ownerId: String, syncId: String)
 
     @Query("DELETE FROM history WHERE ownerId = :ownerId")
     suspend fun clearHistory(ownerId: String)

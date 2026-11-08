@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,7 +33,6 @@ import com.ragul.ccms.feature.auth.presentation.ForgotPasswordScreen
 import com.ragul.ccms.feature.auth.presentation.LoginScreen
 import com.ragul.ccms.feature.auth.presentation.SignupScreen
 import com.ragul.ccms.feature.records.presentation.DashboardScreen
-import com.ragul.ccms.ui.theme.AuthBackground
 import com.ragul.ccms.ui.theme.AuthPrimary
 import com.ragul.ccms.ui.theme.CCMSTheme
 import kotlinx.coroutines.launch
@@ -184,7 +184,7 @@ private fun LoadingScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AuthBackground),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator(color = AuthPrimary)

@@ -75,6 +75,7 @@ dependencies {
     // Firebase Authentication (email/password + Google).
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
 
     // Modern Google Sign-In through Credential Manager.
     implementation(libs.androidx.credentials)

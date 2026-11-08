@@ -46,19 +46,38 @@ class RecordsViewModel(
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
+    init {
+        repository.startSync(ownerId, viewModelScope)
+    }
+
     fun saveMembership(
         existing: MembershipEntity?,
         name: String,
+        gender: String,
+        dob: String,
+        parentName: String,
+        grandfatherName: String,
+        citizenshipNumber: String,
+        address: String,
         phone: String,
+        email: String,
         status: String,
         notes: String,
     ) {
         val now = System.currentTimeMillis()
         val entity = MembershipEntity(
             id = existing?.id ?: 0L,
+            memberId = existing?.memberId ?: 0L,
             ownerId = ownerId,
             name = name.trim(),
+            gender = gender.trim(),
+            dob = dob.trim(),
+            parentName = parentName.trim(),
+            grandfatherName = grandfatherName.trim(),
+            citizenshipNumber = citizenshipNumber.trim(),
+            address = address.trim(),
             phone = phone.trim(),
+            email = email.trim(),
             status = status,
             notes = notes.trim(),
             joinedOn = existing?.joinedOn ?: now,
@@ -73,6 +92,7 @@ class RecordsViewModel(
 
     fun saveLoanDeposit(
         existing: LoanDepositEntity?,
+        memberId: Long,
         isLoan: Boolean,
         personName: String,
         amount: Double,
@@ -81,6 +101,7 @@ class RecordsViewModel(
         val now = System.currentTimeMillis()
         val entity = LoanDepositEntity(
             id = existing?.id ?: 0L,
+            memberId = memberId,
             ownerId = ownerId,
             kind = if (isLoan) LoanDepositEntity.KIND_LOAN else LoanDepositEntity.KIND_DEPOSIT,
             personName = personName.trim(),
@@ -100,6 +121,7 @@ class RecordsViewModel(
 
     fun saveMonthlyDue(
         existing: MonthlyDueEntity?,
+        memberId: Long,
         title: String,
         period: String,
         amount: Double,
@@ -109,6 +131,7 @@ class RecordsViewModel(
         val now = System.currentTimeMillis()
         val entity = MonthlyDueEntity(
             id = existing?.id ?: 0L,
+            memberId = memberId,
             ownerId = ownerId,
             title = title.trim(),
             period = period.trim(),

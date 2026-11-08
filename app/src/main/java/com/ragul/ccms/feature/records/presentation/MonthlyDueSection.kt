@@ -19,21 +19,30 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,24 +50,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ragul.ccms.feature.records.data.MembershipEntity
 import com.ragul.ccms.feature.records.data.MonthlyDueEntity
 import com.ragul.ccms.ui.theme.AuthPrimary
-import com.ragul.ccms.ui.theme.AuthTextPrimary
-import com.ragul.ccms.ui.theme.AuthTextSecondary
+import com.ragul.ccms.ui.theme.CCMSTheme
 import com.ragul.ccms.ui.theme.RecordMonthlyDue
 
 @Composable
 fun MonthlyDueSection(
     monthlyDues: List<MonthlyDueEntity>,
-    onSave: (MonthlyDueEntity?, String, String, Double, Boolean, String) -> Unit,
+    memberships: List<MembershipEntity> = emptyList(),
+    onSave: (
+        existing: MonthlyDueEntity?,
+        memberId: Long,
+        title: String,
+        period: String,
+        amount: Double,
+        isPaid: Boolean,
+        notes: String,
+    ) -> Unit,
     onDelete: (MonthlyDueEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showForm by rememberSaveable { mutableStateOf(false) }
-    var editingId by rememberSaveable { mutableStateOf(0L) }
-    var pendingDeleteId by rememberSaveable { mutableStateOf(0L) }
+    var editingId by rememberSaveable { mutableLongStateOf(0L) }
+    var pendingDeleteId by rememberSaveable { mutableLongStateOf(0L) }
 
     val editing = monthlyDues.firstOrNull { it.id == editingId }
     val pendingDelete = monthlyDues.firstOrNull { it.id == pendingDeleteId }
@@ -75,7 +94,7 @@ fun MonthlyDueSection(
             item {
                 PageHeader(
                     title = "Monthly Due",
-                    description = "Monthly contributions and their payment status.",
+                    description = "Monthly contributions and payment status.",
                     countLabel = "${monthlyDues.size} total",
                 )
             }
@@ -86,7 +105,7 @@ fun MonthlyDueSection(
                         DueSummaryBox(
                             label = "Collected",
                             value = formatAmount(collected),
-                            color = Color(0xFF2E7D32),
+                            color = Color(0xFF10B981),
                             modifier = Modifier.weight(1f),
                         )
                         DueSummaryBox(
@@ -141,9 +160,10 @@ fun MonthlyDueSection(
         key(editingId) {
             MonthlyDueFormDialog(
                 initial = editing,
+                memberships = memberships,
                 onDismiss = { showForm = false },
-                onSave = { title, period, amount, isPaid, notes ->
-                    onSave(editing, title, period, amount, isPaid, notes)
+                onSave = { memberId, title, period, amount, isPaid, notes ->
+                    onSave(editing, memberId, title, period, amount, isPaid, notes)
                     showForm = false
                 },
             )
@@ -167,7 +187,7 @@ fun MonthlyDueSection(
                         pendingDeleteId = 0L
                     },
                 ) {
-                    Text(text = "Delete", color = Color(0xFFB71C1C))
+                    Text(text = "Delete", color = Color(0xFFEF4444))
                 }
             },
             dismissButton = {
@@ -176,6 +196,14 @@ fun MonthlyDueSection(
                 }
             },
         )
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun MonthlyDueSectionPreview() {
+    CCMSTheme {
+        MonthlyDueSection(monthlyDues = emptyList(), memberships = emptyList(), onSave = { _, _, _, _, _, _, _ -> }, onDelete = {})
     }
 }
 
@@ -192,12 +220,12 @@ private fun DueSummaryBox(
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.09f)),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(text = label, fontSize = 12.sp, color = AuthTextSecondary)
+            Text(text = label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 text = value,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = AuthTextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }
@@ -212,7 +240,7 @@ private fun MonthlyDueCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -231,31 +259,48 @@ private fun MonthlyDueCard(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = due.title,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = AuthTextPrimary,
-                    )
-                    Text(text = due.period, fontSize = 12.sp, color = AuthTextSecondary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = due.title,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (due.memberId > 0) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = RecordMonthlyDue.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(50),
+                            ) {
+                                Text(
+                                    text = "ID: #${due.memberId}",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RecordMonthlyDue,
+                                )
+                            }
+                        }
+                    }
+                    Text(text = due.period, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = formatAmount(due.amount),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AuthTextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     StatusPill(
                         text = if (due.isPaid) "Paid" else "Pending",
-                        color = if (due.isPaid) Color(0xFF2E7D32) else RecordMonthlyDue,
+                        color = if (due.isPaid) Color(0xFF10B981) else RecordMonthlyDue,
                     )
                 }
             }
 
             if (due.notes.isNotBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))
-                Text(text = due.notes, fontSize = 13.sp, color = AuthTextSecondary)
+                Text(text = due.notes, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -263,7 +308,7 @@ private fun MonthlyDueCard(
                     text = "Added ${formatDate(due.dueDate)}",
                     modifier = Modifier.weight(1f),
                     fontSize = 12.sp,
-                    color = AuthTextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 IconButton(onClick = onEdit) {
                     Icon(
@@ -276,7 +321,7 @@ private fun MonthlyDueCard(
                     Icon(
                         imageVector = Icons.Outlined.DeleteOutline,
                         contentDescription = "Delete due",
-                        tint = Color(0xFFB71C1C),
+                        tint = Color(0xFFEF4444),
                     )
                 }
             }
@@ -287,9 +332,11 @@ private fun MonthlyDueCard(
 @Composable
 private fun MonthlyDueFormDialog(
     initial: MonthlyDueEntity?,
+    memberships: List<MembershipEntity>,
     onDismiss: () -> Unit,
-    onSave: (title: String, period: String, amount: Double, isPaid: Boolean, notes: String) -> Unit,
+    onSave: (memberId: Long, title: String, period: String, amount: Double, isPaid: Boolean, notes: String) -> Unit,
 ) {
+    var memberId by rememberSaveable(initial?.id) { mutableLongStateOf(initial?.memberId ?: 0L) }
     var title by rememberSaveable(initial?.id) { mutableStateOf(initial?.title.orEmpty()) }
     var period by rememberSaveable(initial?.id) {
         mutableStateOf(initial?.period ?: currentPeriod())
@@ -300,21 +347,70 @@ private fun MonthlyDueFormDialog(
     var isPaid by rememberSaveable(initial?.id) { mutableStateOf(initial?.isPaid ?: false) }
     var notes by rememberSaveable(initial?.id) { mutableStateOf(initial?.notes.orEmpty()) }
 
+    var dropdownExpanded by remember { mutableStateOf(false) }
+
     val amount = amountText.replace(',', '.').toDoubleOrNull()
     val amountValid = amount != null && amount > 0
 
     RecordFormDialog(
-        title = if (initial == null) "Add monthly due" else "Edit monthly due",
+        title = if (initial == null) "Add Monthly Due" else "Edit Monthly Due",
         onDismiss = onDismiss,
-        onSave = { onSave(title, period, amount ?: 0.0, isPaid, notes) },
+        onSave = { onSave(memberId, title, period, amount ?: 0.0, isPaid, notes) },
         saveEnabled = title.isNotBlank() && period.isNotBlank() && amountValid,
     ) {
-        FormTextField(
-            value = title,
-            onValueChange = { title = it },
-            label = "Member or title *",
-            isError = title.isBlank(),
-        )
+        if (memberships.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = if (memberId > 0) "#$memberId - $title" else title,
+                    onValueChange = {
+                        title = it
+                        memberId = 0L
+                    },
+                    label = { Text(text = "Member or Title (Select or Type) *") },
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        IconButton(onClick = { dropdownExpanded = true }) {
+                            Icon(imageVector = Icons.Outlined.ArrowDropDown, contentDescription = "Select member")
+                        }
+                    },
+                    isError = title.isBlank(),
+                    shape = RoundedCornerShape(10.dp),
+                )
+
+                DropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false },
+                    modifier = Modifier.fillMaxWidth(0.85f),
+                ) {
+                    memberships.forEach { m ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "#${m.memberId} - ${m.name}",
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            onClick = {
+                                memberId = m.memberId
+                                title = m.name
+                                dropdownExpanded = false
+                            },
+                            leadingIcon = {
+                                Icon(imageVector = Icons.Outlined.Person, contentDescription = null)
+                            },
+                        )
+                    }
+                }
+            }
+        } else {
+            FormTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = "Member or Title *",
+                isError = title.isBlank(),
+            )
+        }
+
         FormTextField(
             value = period,
             onValueChange = { period = it },
@@ -322,6 +418,7 @@ private fun MonthlyDueFormDialog(
             isError = period.isBlank(),
             supportingText = "For example: ${currentPeriod()}",
         )
+
         FormTextField(
             value = amountText,
             onValueChange = { amountText = it },
@@ -334,7 +431,8 @@ private fun MonthlyDueFormDialog(
                 else -> null
             },
         )
-        Text(text = "Payment status", fontSize = 13.sp, color = AuthTextSecondary)
+
+        Text(text = "Payment status", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChoiceChip(
                 label = "Pending",
@@ -347,6 +445,7 @@ private fun MonthlyDueFormDialog(
                 onClick = { isPaid = true },
             )
         }
+
         FormTextField(
             value = notes,
             onValueChange = { notes = it },
