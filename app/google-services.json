@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "547633556298",
+    "project_id": "ccms-d6d89",
+    "storage_bucket": "ccms-d6d89.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:547633556298:android:42793ed0733393fbd16fb3",
+        "android_client_info": {
+          "package_name": "com.ragul.ccms"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "547633556298-gjqu0hbfudr3c377riq62bklojr5t4uo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAmRrKjOa2uanrFHgFTOaKVs5KqrIF3n3U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "547633556298-gjqu0hbfudr3c377riq62bklojr5t4uo.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
