@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.ragul.ccms.feature.records.domain.LoanCalculator
 
 /**
  * All record tables are scoped by [ownerId] so two Firebase accounts that use the same
@@ -37,13 +38,24 @@ data class LoanDepositEntity(
     val ownerId: String,
     val kind: String,
     val personName: String,
+    /** Principal loan amount. */
     val amount: Double,
+    /** Loan duration in years. */
+    @ColumnInfo(defaultValue = "0") val time: Double = 0.0,
+    /** Annual interest rate in percent. */
+    @ColumnInfo(defaultValue = "0") val rate: Double = 0.0,
     val notes: String,
     val date: Long,
     val updatedAt: Long,
     @ColumnInfo(defaultValue = "''") val syncId: String = "",
 ) {
     val isLoan: Boolean get() = kind == KIND_LOAN
+
+    /** Derived simple interest; never stored, so amount/time/rate stay the source of truth. */
+    val interest: Double get() = LoanCalculator.interest(amount, time, rate)
+
+    /** Derived total (principal + interest). */
+    val total: Double get() = LoanCalculator.total(amount, time, rate)
 
     companion object {
         const val KIND_LOAN = "LOAN"
@@ -57,14 +69,21 @@ data class MonthlyDueEntity(
     @ColumnInfo(defaultValue = "0") val memberId: Long = 0,
     val ownerId: String,
     val title: String,
+    /** Bikram Sambat period label, for example `Kartik 2083 BS`. */
     val period: String,
+    /** Legacy due amount, kept in sync with [grandTotal] for older clients and history. */
     val amount: Double,
+    @ColumnInfo(defaultValue = "0") val amountDeposit: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val grandTotal: Double = 0.0,
     val isPaid: Boolean,
     val notes: String,
     val dueDate: Long,
     val updatedAt: Long,
     @ColumnInfo(defaultValue = "''") val syncId: String = "",
-)
+) {
+    /** Derived balance; never stored so the two amounts stay the source of truth. */
+    val remaining: Double get() = (grandTotal - amountDeposit).coerceAtLeast(0.0)
+}
 
 @Entity(tableName = "history", indices = [Index("ownerId")])
 data class HistoryEntity(

@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MonthlyDueEntity::class,
         HistoryEntity::class,
     ],
-    version = 3,
+    version = 5,
     exportSchema = false,
 )
 abstract class CcmsDatabase : RoomDatabase() {
@@ -32,7 +32,7 @@ abstract class CcmsDatabase : RoomDatabase() {
                     CcmsDatabase::class.java,
                     "ccms.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigrationOnDowngrade(false)
                     .build()
                     .also { instance = it }
@@ -62,6 +62,22 @@ abstract class CcmsDatabase : RoomDatabase() {
 
                 database.execSQL("ALTER TABLE loan_deposits ADD COLUMN memberId INTEGER NOT NULL DEFAULT 0")
                 database.execSQL("ALTER TABLE monthly_dues ADD COLUMN memberId INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE loan_deposits ADD COLUMN time REAL NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE loan_deposits ADD COLUMN rate REAL NOT NULL DEFAULT 0")
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE monthly_dues ADD COLUMN amountDeposit REAL NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE monthly_dues ADD COLUMN grandTotal REAL NOT NULL DEFAULT 0")
+                // Existing dues only stored one amount, so it becomes the grand total.
+                database.execSQL("UPDATE monthly_dues SET grandTotal = amount WHERE grandTotal = 0")
             }
         }
     }

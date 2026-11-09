@@ -36,7 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.ragul.ccms.ui.localization.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragul.ccms.feature.records.data.LoanDepositEntity
 import com.ragul.ccms.feature.records.data.MembershipEntity
+import com.ragul.ccms.feature.records.domain.LoanCalculator
 import com.ragul.ccms.ui.theme.AuthPrimary
 import com.ragul.ccms.ui.theme.CCMSTheme
 import com.ragul.ccms.ui.theme.RecordLoanDeposit
@@ -70,6 +71,8 @@ fun LoanDepositSection(
         isLoan: Boolean,
         personName: String,
         amount: Double,
+        time: Double,
+        rate: Double,
         notes: String,
     ) -> Unit,
     onDelete: (LoanDepositEntity) -> Unit,
@@ -82,8 +85,8 @@ fun LoanDepositSection(
     val editing = loanDeposits.firstOrNull { it.id == editingId }
     val pendingDelete = loanDeposits.firstOrNull { it.id == pendingDeleteId }
 
-    val totalLoans = loanDeposits.filter { it.isLoan }.sumOf { it.amount }
-    val totalDeposits = loanDeposits.filterNot { it.isLoan }.sumOf { it.amount }
+    val totalLoans = loanDeposits.filter { it.isLoan }.sumOf { it.total }
+    val totalDeposits = loanDeposits.filterNot { it.isLoan }.sumOf { it.total }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -154,8 +157,8 @@ fun LoanDepositSection(
                 initial = editing,
                 memberships = memberships,
                 onDismiss = { showForm = false },
-                onSave = { memberId, isLoan, personName, amount, notes ->
-                    onSave(editing, memberId, isLoan, personName, amount, notes)
+                onSave = { memberId, isLoan, personName, amount, time, rate, notes ->
+                    onSave(editing, memberId, isLoan, personName, amount, time, rate, notes)
                     showForm = false
                 },
             )
@@ -195,7 +198,7 @@ fun LoanDepositSection(
 @Composable
 private fun LoanDepositSectionPreview() {
     CCMSTheme {
-        LoanDepositSection(loanDeposits = emptyList(), memberships = emptyList(), onSave = { _, _, _, _, _, _ -> }, onDelete = {})
+        LoanDepositSection(loanDeposits = emptyList(), memberships = emptyList(), onSave = { _, _, _, _, _, _, _, _ -> }, onDelete = {})
     }
 }
 
@@ -302,16 +305,44 @@ private fun LoanDepositCard(
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = formatAmount(record.amount),
+                        text = formatAmount(record.total),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "Total",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     StatusPill(
                         text = if (record.isLoan) "Loan" else "Deposit",
                         color = RecordLoanDeposit,
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Principal ${formatAmount(record.amount)}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "Interest ${formatAmount(record.interest)}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            if (record.time > 0.0 || record.rate > 0.0) {
+                Text(
+                    text = "Time ${record.time.asPlainNumber()} yr · Rate ${record.rate.asPlainNumber()}% per year",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             if (record.notes.isNotBlank()) {
@@ -345,7 +376,15 @@ private fun LoanDepositFormDialog(
     initial: LoanDepositEntity?,
     memberships: List<MembershipEntity>,
     onDismiss: () -> Unit,
-    onSave: (memberId: Long, isLoan: Boolean, personName: String, amount: Double, notes: String) -> Unit,
+    onSave: (
+        memberId: Long,
+        isLoan: Boolean,
+        personName: String,
+        amount: Double,
+        time: Double,
+        rate: Double,
+        notes: String,
+    ) -> Unit,
 ) {
     var isLoan by rememberSaveable(initial?.id) { mutableStateOf(initial?.isLoan ?: true) }
     var memberId by rememberSaveable(initial?.id) { mutableLongStateOf(initial?.memberId ?: 0L) }
@@ -353,20 +392,52 @@ private fun LoanDepositFormDialog(
         mutableStateOf(initial?.personName.orEmpty())
     }
     var amountText by rememberSaveable(initial?.id) {
-        mutableStateOf(initial?.amount?.takeIf { it != 0.0 }?.toString().orEmpty())
+        mutableStateOf(initial?.amount?.takeIf { it != 0.0 }?.asPlainNumber().orEmpty())
+    }
+    var timeText by rememberSaveable(initial?.id) {
+        mutableStateOf(initial?.time?.takeIf { it != 0.0 }?.asPlainNumber().orEmpty())
+    }
+    var rateText by rememberSaveable(initial?.id) {
+        mutableStateOf(initial?.rate?.asPlainNumber().orEmpty())
     }
     var notes by rememberSaveable(initial?.id) { mutableStateOf(initial?.notes.orEmpty()) }
 
     var dropdownExpanded by remember { mutableStateOf(false) }
 
-    val amount = amountText.replace(',', '.').toDoubleOrNull()
-    val amountValid = amount != null && amount > 0
+    val amount = amountText.toNumberOrNull()
+    val time = timeText.toNumberOrNull()
+    val rate = rateText.toNumberOrNull()
+    val amountValid = amount != null && amount > 0.0
+    val timeValid = time != null && time > 0.0
+    val rateValid = rate != null && rate >= 0.0
+    val valuesValid = amountValid && timeValid && rateValid
+
+    val interest = if (valuesValid) {
+        LoanCalculator.interest(amount ?: 0.0, time ?: 0.0, rate ?: 0.0)
+    } else {
+        0.0
+    }
+    val total = if (valuesValid) {
+        LoanCalculator.total(amount ?: 0.0, time ?: 0.0, rate ?: 0.0)
+    } else {
+        0.0
+    }
 
     RecordFormDialog(
         title = if (initial == null) "Add Record" else "Edit Record",
         onDismiss = onDismiss,
-        onSave = { onSave(memberId, isLoan, personName, amount ?: 0.0, notes) },
-        saveEnabled = personName.isNotBlank() && amountValid,
+        onSave = {
+            onSave(
+                memberId,
+                isLoan,
+                personName,
+                amount ?: 0.0,
+                time ?: 0.0,
+                rate ?: 0.0,
+                notes,
+            )
+        },
+        saveEnabled = personName.isNotBlank() && valuesValid,
     ) {
         Text(text = "Type", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -438,7 +509,7 @@ private fun LoanDepositFormDialog(
         FormTextField(
             value = amountText,
             onValueChange = { amountText = it },
-            label = "Amount *",
+            label = "Amount (Principal) *",
             keyboardType = KeyboardType.Decimal,
             isError = amountText.isNotBlank() && !amountValid,
             supportingText = when {
@@ -448,6 +519,75 @@ private fun LoanDepositFormDialog(
             },
         )
 
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FormTextField(
+                value = timeText,
+                onValueChange = { timeText = it },
+                label = "Time (Years) *",
+                modifier = Modifier.weight(1f),
+                keyboardType = KeyboardType.Decimal,
+                isError = timeText.isNotBlank() && !timeValid,
+                supportingText = when {
+                    timeText.isBlank() -> "Duration in years."
+                    !timeValid -> "Must be greater than zero."
+                    else -> null
+                },
+            )
+            FormTextField(
+                value = rateText,
+                onValueChange = { rateText = it },
+                label = "Rate (% per Year) *",
+                modifier = Modifier.weight(1f),
+                keyboardType = KeyboardType.Decimal,
+                isError = rateText.isNotBlank() && !rateValid,
+                supportingText = when {
+                    rateText.isBlank() -> "Annual interest rate."
+                    !rateValid -> "Must be zero or more."
+                    else -> null
+                },
+            )
+        }
+
+        if (valuesValid) {
+            Surface(
+                color = RecordLoanDeposit.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Interest",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = formatAmount(interest),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Total (Amount + Interest)",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = formatAmount(total),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = RecordLoanDeposit,
+                        )
+                    }
+                }
+            }
+        }
+
         FormTextField(
             value = notes,
             onValueChange = { notes = it },
@@ -456,3 +596,9 @@ private fun LoanDepositFormDialog(
         )
     }
 }
+
+private fun String.toNumberOrNull(): Double? = replace(',', '.').toDoubleOrNull()
+
+private fun Double.asPlainNumber(): String =
+    if (this == toLong().toDouble()) toLong().toString() else toString()
+

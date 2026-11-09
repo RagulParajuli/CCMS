@@ -35,7 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.ragul.ccms.ui.localization.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,9 +55,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragul.ccms.feature.records.data.MembershipEntity
 import com.ragul.ccms.feature.records.data.MonthlyDueEntity
+import com.ragul.ccms.feature.records.domain.NepaliDate
 import com.ragul.ccms.ui.theme.AuthPrimary
 import com.ragul.ccms.ui.theme.CCMSTheme
 import com.ragul.ccms.ui.theme.RecordMonthlyDue
+
+private fun parseBsPeriod(period: String?): NepaliDate? {
+    val parts = period?.trim()?.split(' ') ?: return null
+    if (parts.size < 2) return null
+    val month = NepaliDate.MONTH_NAMES.indexOfFirst { it.equals(parts[0], ignoreCase = true) } + 1
+    val year = parts[1].toIntOrNull() ?: return null
+    return NepaliDate(year, month, 1).takeIf { NepaliDate.daysInMonth(year, month) > 0 }
+}
 
 @Composable
 fun MonthlyDueSection(
@@ -68,7 +77,8 @@ fun MonthlyDueSection(
         memberId: Long,
         title: String,
         period: String,
-        amount: Double,
+        amountDeposit: Double,
+        grandTotal: Double,
         isPaid: Boolean,
         notes: String,
     ) -> Unit,
@@ -130,6 +140,7 @@ fun MonthlyDueSection(
                 items(monthlyDues, key = { it.id }) { due ->
                     MonthlyDueCard(
                         due = due,
+                        memberships = memberships,
                         onEdit = {
                             editingId = due.id
                             showForm = true
@@ -162,8 +173,8 @@ fun MonthlyDueSection(
                 initial = editing,
                 memberships = memberships,
                 onDismiss = { showForm = false },
-                onSave = { memberId, title, period, amount, isPaid, notes ->
-                    onSave(editing, memberId, title, period, amount, isPaid, notes)
+                onSave = { memberId, title, period, amountDeposit, grandTotal, isPaid, notes ->
+                    onSave(editing, memberId, title, period, amountDeposit, grandTotal, isPaid, notes)
                     showForm = false
                 },
             )
@@ -203,7 +214,7 @@ fun MonthlyDueSection(
 @Composable
 private fun MonthlyDueSectionPreview() {
     CCMSTheme {
-        MonthlyDueSection(monthlyDues = emptyList(), memberships = emptyList(), onSave = { _, _, _, _, _, _, _ -> }, onDelete = {})
+        MonthlyDueSection(monthlyDues = emptyList(), memberships = emptyList(), onSave = { _, _, _, _, _, _, _, _ -> }, onDelete = {})
     }
 }
 
@@ -234,6 +245,7 @@ private fun DueSummaryBox(
 @Composable
 private fun MonthlyDueCard(
     due: MonthlyDueEntity,
+    memberships: List<MembershipEntity>,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -282,11 +294,11 @@ private fun MonthlyDueCard(
                             }
                         }
                     }
-                    Text(text = due.period, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = "${due.period} · ${memberships.firstOrNull { it.memberId == due.memberId }?.name.orEmpty()}".trimEnd(' ', '·'), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = formatAmount(due.amount),
+                        text = formatAmount(due.remaining),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -305,7 +317,7 @@ private fun MonthlyDueCard(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Added ${formatDate(due.dueDate)}",
+                    text = "Added ${NepaliDate.today(java.util.Calendar.getInstance().apply { timeInMillis = due.dueDate })?.format() ?: "—"}",
                     modifier = Modifier.weight(1f),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -334,29 +346,31 @@ private fun MonthlyDueFormDialog(
     initial: MonthlyDueEntity?,
     memberships: List<MembershipEntity>,
     onDismiss: () -> Unit,
-    onSave: (memberId: Long, title: String, period: String, amount: Double, isPaid: Boolean, notes: String) -> Unit,
+    onSave: (memberId: Long, title: String, period: String, amountDeposit: Double, grandTotal: Double, isPaid: Boolean, notes: String) -> Unit,
 ) {
     var memberId by rememberSaveable(initial?.id) { mutableLongStateOf(initial?.memberId ?: 0L) }
     var title by rememberSaveable(initial?.id) { mutableStateOf(initial?.title.orEmpty()) }
-    var period by rememberSaveable(initial?.id) {
-        mutableStateOf(initial?.period ?: currentPeriod())
-    }
-    var amountText by rememberSaveable(initial?.id) {
-        mutableStateOf(initial?.amount?.takeIf { it != 0.0 }?.toString().orEmpty())
-    }
+    val today = remember { NepaliDate.today() ?: NepaliDate(2083, 1, 1) }
+    val initialDate = remember(initial?.id) { parseBsPeriod(initial?.period) ?: today }
+    var bsMonth by rememberSaveable(initial?.id) { mutableStateOf(initialDate.month) }
+    var bsYear by rememberSaveable(initial?.id) { mutableStateOf(initialDate.year) }
+    var depositText by rememberSaveable(initial?.id) { mutableStateOf(initial?.amountDeposit?.takeIf { it > 0 }?.toString().orEmpty()) }
+    var totalText by rememberSaveable(initial?.id) { mutableStateOf((initial?.grandTotal ?: initial?.amount)?.takeIf { it > 0 }?.toString().orEmpty()) }
     var isPaid by rememberSaveable(initial?.id) { mutableStateOf(initial?.isPaid ?: false) }
     var notes by rememberSaveable(initial?.id) { mutableStateOf(initial?.notes.orEmpty()) }
 
     var dropdownExpanded by remember { mutableStateOf(false) }
 
-    val amount = amountText.replace(',', '.').toDoubleOrNull()
-    val amountValid = amount != null && amount > 0
+    val deposit = depositText.replace(',', '.').toDoubleOrNull()
+    val total = totalText.replace(',', '.').toDoubleOrNull()
+    val amountValid = deposit != null && deposit >= 0 && total != null && total > 0 && deposit <= total
+    val period = "${NepaliDate.monthName(bsMonth)} $bsYear BS"
 
     RecordFormDialog(
         title = if (initial == null) "Add Monthly Due" else "Edit Monthly Due",
         onDismiss = onDismiss,
-        onSave = { onSave(memberId, title, period, amount ?: 0.0, isPaid, notes) },
-        saveEnabled = title.isNotBlank() && period.isNotBlank() && amountValid,
+        onSave = { onSave(memberId, title, period, deposit ?: 0.0, total ?: 0.0, isPaid, notes) },
+        saveEnabled = title.isNotBlank() && amountValid,
     ) {
         if (memberships.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -411,26 +425,36 @@ private fun MonthlyDueFormDialog(
             )
         }
 
-        FormTextField(
-            value = period,
-            onValueChange = { period = it },
-            label = "Period *",
-            isError = period.isBlank(),
-            supportingText = "For example: ${currentPeriod()}",
-        )
-
-        FormTextField(
-            value = amountText,
-            onValueChange = { amountText = it },
-            label = "Amount *",
-            keyboardType = KeyboardType.Decimal,
-            isError = amountText.isNotBlank() && !amountValid,
-            supportingText = when {
-                amountText.isBlank() -> "Enter an amount greater than zero."
-                !amountValid -> "Enter a valid amount."
-                else -> null
-            },
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            var monthExpanded by remember { mutableStateOf(false) }
+            var yearExpanded by remember { mutableStateOf(false) }
+            Box(modifier = Modifier.weight(1.2f)) {
+                OutlinedTextField(value = NepaliDate.monthName(bsMonth), onValueChange = {}, readOnly = true,
+                    label = { Text("BS Month") }, modifier = Modifier.fillMaxWidth(), trailingIcon = {
+                        IconButton(onClick = { monthExpanded = true }) { Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Select BS month") }
+                    })
+                DropdownMenu(expanded = monthExpanded, onDismissRequest = { monthExpanded = false }) {
+                    NepaliDate.MONTH_NAMES.forEachIndexed { index, name -> DropdownMenuItem(text = { Text(name) }, onClick = { bsMonth = index + 1; monthExpanded = false }) }
+                }
+            }
+            Box(modifier = Modifier.weight(0.8f)) {
+                OutlinedTextField(value = bsYear.toString(), onValueChange = {}, readOnly = true,
+                    label = { Text("BS Year") }, modifier = Modifier.fillMaxWidth(), trailingIcon = {
+                        IconButton(onClick = { yearExpanded = true }) { Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Select BS year") }
+                    })
+                DropdownMenu(expanded = yearExpanded, onDismissRequest = { yearExpanded = false }) {
+                    (NepaliDate.MIN_YEAR..NepaliDate.MAX_YEAR).forEach { year -> DropdownMenuItem(text = { Text(year.toString()) }, onClick = { bsYear = year; yearExpanded = false }) }
+                }
+            }
+        }
+        FormTextField(value = depositText, onValueChange = { depositText = it }, label = "Amount Deposit", keyboardType = KeyboardType.Decimal,
+            isError = depositText.isNotBlank() && (deposit == null || deposit < 0 || (total != null && deposit > total)))
+        FormTextField(value = totalText, onValueChange = { totalText = it }, label = "Grand Total *", keyboardType = KeyboardType.Decimal,
+            isError = totalText.isNotBlank() && !amountValid)
+        Text(text = "Remaining Balance: ${formatAmount(((total ?: 0.0) - (deposit ?: 0.0)).coerceAtLeast(0.0))}", fontWeight = FontWeight.SemiBold)
+        if (!amountValid && (depositText.isNotBlank() || totalText.isNotBlank())) {
+            Text(text = "Enter a valid total and a deposit no greater than the total.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        }
 
         Text(text = "Payment status", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

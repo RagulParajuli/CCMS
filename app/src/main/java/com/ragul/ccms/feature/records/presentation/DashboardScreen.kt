@@ -52,7 +52,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.ragul.ccms.ui.localization.Text
+import com.ragul.ccms.ui.localization.LanguageToggle
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -171,9 +172,9 @@ fun DashboardContent(
         String,
     ) -> Unit,
     onDeleteMembership: (MembershipEntity) -> Unit,
-    onSaveLoanDeposit: (LoanDepositEntity?, Long, Boolean, String, Double, String) -> Unit,
+    onSaveLoanDeposit: (LoanDepositEntity?, Long, Boolean, String, Double, Double, Double, String) -> Unit,
     onDeleteLoanDeposit: (LoanDepositEntity) -> Unit,
-    onSaveMonthlyDue: (MonthlyDueEntity?, Long, String, String, Double, Boolean, String) -> Unit,
+    onSaveMonthlyDue: (MonthlyDueEntity?, Long, String, String, Double, Double, Boolean, String) -> Unit,
     onDeleteMonthlyDue: (MonthlyDueEntity) -> Unit,
     onClearHistory: () -> Unit,
     onMessageShown: () -> Unit,
@@ -348,6 +349,8 @@ private fun DashboardTopBar(
             )
 
             Spacer(modifier = Modifier.weight(1f))
+
+            LanguageToggle()
 
             Surface(
                 modifier = Modifier
@@ -938,9 +941,9 @@ private fun DashboardScreenPreview() {
             onResendVerification = {},
             onSaveMembership = { _, _, _, _, _, _, _, _, _, _, _, _ -> },
             onDeleteMembership = {},
-            onSaveLoanDeposit = { _, _, _, _, _, _ -> },
+            onSaveLoanDeposit = { _, _, _, _, _, _, _, _ -> },
             onDeleteLoanDeposit = {},
-            onSaveMonthlyDue = { _, _, _, _, _, _, _ -> },
+            onSaveMonthlyDue = { _, _, _, _, _, _, _, _ -> },
             onDeleteMonthlyDue = {},
             onClearHistory = {},
             onMessageShown = {},

@@ -10,8 +10,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +38,9 @@ import com.ragul.ccms.feature.auth.presentation.SignupScreen
 import com.ragul.ccms.feature.records.presentation.DashboardScreen
 import com.ragul.ccms.ui.theme.AuthPrimary
 import com.ragul.ccms.ui.theme.CCMSTheme
+import com.ragul.ccms.ui.localization.AppLanguage
+import com.ragul.ccms.ui.localization.LocalAppLanguage
+import com.ragul.ccms.ui.localization.LocalSetAppLanguage
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -64,6 +70,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun CCMSApp(demoUser: AuthUser? = null) {
     val context = LocalContext.current
+    val preferences = remember(context) { context.getSharedPreferences("ccms_preferences", android.content.Context.MODE_PRIVATE) }
+    var language by remember {
+        mutableStateOf(runCatching { AppLanguage.valueOf(preferences.getString("language", "NEPALI") ?: "NEPALI") }.getOrDefault(AppLanguage.NEPALI))
+    }
     val factory = remember { AuthViewModel.factory(context.applicationContext) }
     val viewModel: AuthViewModel = viewModel(factory = factory)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -95,7 +105,14 @@ private fun CCMSApp(demoUser: AuthUser? = null) {
     }
 
     val user = state.user ?: demoUser
-    when {
+    CompositionLocalProvider(
+        LocalAppLanguage provides language,
+        LocalSetAppLanguage provides { selected ->
+            language = selected
+            preferences.edit().putString("language", selected.name).apply()
+        },
+    ) {
+        when {
         state.isInitializing -> LoadingScreen()
 
         user != null -> DashboardScreen(
@@ -113,6 +130,7 @@ private fun CCMSApp(demoUser: AuthUser? = null) {
             viewModel = viewModel,
             onGoogleSignIn = onGoogleSignIn,
         )
+        }
     }
 }
 

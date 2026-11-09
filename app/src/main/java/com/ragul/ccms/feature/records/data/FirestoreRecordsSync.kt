@@ -261,6 +261,8 @@ internal class FirestoreRecordsSync(
         "kind" to kind,
         "personName" to personName,
         "amount" to amount,
+        "time" to time,
+        "rate" to rate,
         "notes" to notes,
         "date" to date,
         "updatedAt" to updatedAt,
@@ -273,6 +275,8 @@ internal class FirestoreRecordsSync(
         "title" to title,
         "period" to period,
         "amount" to amount,
+        "amountDeposit" to amountDeposit,
+        "grandTotal" to grandTotal,
         "isPaid" to isPaid,
         "notes" to notes,
         "dueDate" to dueDate,
@@ -315,25 +319,32 @@ internal class FirestoreRecordsSync(
         kind = getString("kind") ?: LoanDepositEntity.KIND_LOAN,
         personName = getString("personName") ?: "",
         amount = getDouble("amount") ?: getLong("amount")?.toDouble() ?: 0.0,
+        time = getDouble("time") ?: getLong("time")?.toDouble() ?: 0.0,
+        rate = getDouble("rate") ?: getLong("rate")?.toDouble() ?: 0.0,
         notes = getString("notes") ?: "",
         date = getLong("date") ?: 0L,
         updatedAt = getLong("updatedAt") ?: 0L,
         syncId = id,
     )
 
-    private fun DocumentSnapshot.toMonthlyDue() = MonthlyDueEntity(
-        id = 0,
-        memberId = getLong("memberId") ?: 0L,
-        ownerId = ownerId,
-        title = getString("title") ?: "",
-        period = getString("period") ?: "",
-        amount = getDouble("amount") ?: getLong("amount")?.toDouble() ?: 0.0,
-        isPaid = getBoolean("isPaid") ?: false,
-        notes = getString("notes") ?: "",
-        dueDate = getLong("dueDate") ?: 0L,
-        updatedAt = getLong("updatedAt") ?: 0L,
-        syncId = id,
-    )
+    private fun DocumentSnapshot.toMonthlyDue(): MonthlyDueEntity {
+        val amount = getDouble("amount") ?: getLong("amount")?.toDouble() ?: 0.0
+        return MonthlyDueEntity(
+            id = 0,
+            memberId = getLong("memberId") ?: 0L,
+            ownerId = ownerId,
+            title = getString("title") ?: "",
+            period = getString("period") ?: "",
+            amount = amount,
+            amountDeposit = getDouble("amountDeposit") ?: getLong("amountDeposit")?.toDouble() ?: 0.0,
+            grandTotal = getDouble("grandTotal") ?: getLong("grandTotal")?.toDouble() ?: amount,
+            isPaid = getBoolean("isPaid") ?: false,
+            notes = getString("notes") ?: "",
+            dueDate = getLong("dueDate") ?: 0L,
+            updatedAt = getLong("updatedAt") ?: 0L,
+            syncId = id,
+        )
+    }
 
     private fun DocumentSnapshot.toHistory() = HistoryEntity(
         id = 0,

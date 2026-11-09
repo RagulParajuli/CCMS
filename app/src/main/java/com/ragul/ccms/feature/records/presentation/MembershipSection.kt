@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -36,9 +37,8 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,9 +46,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.ragul.ccms.ui.localization.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -67,12 +66,10 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragul.ccms.feature.records.data.MembershipEntity
+import com.ragul.ccms.feature.records.domain.NepaliDate
 import com.ragul.ccms.ui.theme.AuthPrimary
 import com.ragul.ccms.ui.theme.CCMSTheme
 import com.ragul.ccms.ui.theme.RecordMembership
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun MembershipSection(
@@ -372,7 +369,11 @@ private fun MembershipCard(
                         DetailRow(icon = Icons.Outlined.Person, label = "Gender", value = membership.gender)
                     }
                     if (membership.dob.isNotBlank()) {
-                        DetailRow(icon = Icons.Outlined.Person, label = "Date of Birth", value = membership.dob)
+                        DetailRow(
+                            icon = Icons.Outlined.CalendarMonth,
+                            label = "Date of Birth",
+                            value = NepaliDate.fromIso(membership.dob)?.format() ?: membership.dob,
+                        )
                     }
                     if (membership.parentName.isNotBlank()) {
                         DetailRow(icon = Icons.Outlined.Person, label = "Father/Mother", value = membership.parentName)
@@ -465,7 +466,6 @@ private fun DetailRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MembershipFormDialog(
     initial: MembershipEntity?,
@@ -500,27 +500,14 @@ private fun MembershipFormDialog(
     var showDatePicker by remember { mutableStateOf(false) }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState()
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        dob = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(millis))
-                    }
-                    showDatePicker = false
-                }) {
-                    Text("OK")
-                }
+        BsDatePickerDialog(
+            initial = NepaliDate.fromIso(dob),
+            onDismiss = { showDatePicker = false },
+            onConfirm = { selected ->
+                dob = selected.toIso()
+                showDatePicker = false
             },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
-                }
-            },
-        ) {
-            DatePicker(state = datePickerState)
-        }
+        )
     }
 
     val displayedId = if (initial != null && initial.memberId > 0) {
@@ -605,13 +592,14 @@ private fun MembershipFormDialog(
 
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
-                value = dob,
-                onValueChange = { dob = it },
-                label = { Text(text = "Date of Birth (YYYY-MM-DD)") },
+                value = NepaliDate.fromIso(dob)?.format() ?: dob,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(text = "Date of Birth (BS)") },
                 modifier = Modifier.fillMaxWidth(),
                 trailingIcon = {
                     IconButton(onClick = { showDatePicker = true }) {
-                        Icon(imageVector = Icons.Outlined.CalendarMonth, contentDescription = "Select date of birth")
+                        Icon(imageVector = Icons.Outlined.CalendarMonth, contentDescription = "Select Nepali date of birth")
                     }
                 },
                 shape = RoundedCornerShape(10.dp),
@@ -680,5 +668,157 @@ private fun MembershipFormDialog(
             label = "Notes",
             singleLine = false,
         )
+    }
+}
+
+@Composable
+private fun BsDatePickerDialog(
+    initial: NepaliDate?,
+    onDismiss: () -> Unit,
+    onConfirm: (NepaliDate) -> Unit,
+) {
+    val today = remember { NepaliDate.today() }
+    val maxYear = today?.year ?: NepaliDate.MAX_YEAR
+    val fallback = today ?: NepaliDate(NepaliDate.MAX_YEAR, 1, 1)
+    val start = initial?.takeIf {
+        it.year in NepaliDate.MIN_YEAR..maxYear && NepaliDate.isValid(it.year, it.month, it.day)
+    } ?: fallback
+
+    var year by rememberSaveable(initial?.toIso()) { mutableStateOf(start.year) }
+    var month by rememberSaveable(initial?.toIso()) { mutableStateOf(start.month) }
+    var day by rememberSaveable(initial?.toIso()) { mutableStateOf(start.day) }
+
+    val years = remember(maxYear) { (maxYear downTo NepaliDate.MIN_YEAR).toList() }
+    val days = remember(year, month) {
+        (1..NepaliDate.daysInMonth(year, month).coerceAtLeast(1)).toList()
+    }
+    val selected = NepaliDate(year, month, day)
+    val inFuture = today != null && selected > today
+
+    fun selectMonth(value: Int) {
+        month = value
+        day = day.coerceAtMost(NepaliDate.daysInMonth(year, value).coerceAtLeast(1))
+    }
+
+    fun selectYear(value: Int) {
+        year = value
+        day = day.coerceAtMost(NepaliDate.daysInMonth(value, month).coerceAtLeast(1))
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Date of Birth (BS)", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Select a Bikram Sambat date. Month lengths change every year.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                BsDropdown(
+                    label = "Year",
+                    value = "$year BS",
+                    options = years,
+                    optionLabel = { "$it BS" },
+                    onSelect = ::selectYear,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    BsDropdown(
+                        label = "Month",
+                        value = NepaliDate.monthName(month),
+                        options = (1..12).toList(),
+                        optionLabel = { NepaliDate.monthName(it) },
+                        onSelect = ::selectMonth,
+                        modifier = Modifier.weight(1.4f),
+                    )
+                    BsDropdown(
+                        label = "Day",
+                        value = day.toString(),
+                        options = days,
+                        optionLabel = { it.toString() },
+                        onSelect = { day = it },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Surface(
+                    color = AuthPrimary.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = selected.format(),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AuthPrimary,
+                    )
+                }
+                if (inFuture) {
+                    Text(
+                        text = "Date of birth cannot be in the future.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selected) }, enabled = !inFuture) {
+                Text(
+                    text = "OK",
+                    color = if (inFuture) MaterialTheme.colorScheme.onSurfaceVariant else AuthPrimary,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+    )
+}
+
+@Composable
+private fun BsDropdown(
+    label: String,
+    value: String,
+    options: List<Int>,
+    optionLabel: (Int) -> String,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text(text = label) },
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                IconButton(onClick = { expanded = true }) {
+                    Icon(imageVector = Icons.Outlined.ArrowDropDown, contentDescription = "Choose $label")
+                }
+            },
+            shape = RoundedCornerShape(10.dp),
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(text = optionLabel(option)) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }

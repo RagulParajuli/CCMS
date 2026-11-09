@@ -96,6 +96,8 @@ class RecordsViewModel(
         isLoan: Boolean,
         personName: String,
         amount: Double,
+        time: Double,
+        rate: Double,
         notes: String,
     ) {
         val now = System.currentTimeMillis()
@@ -106,6 +108,8 @@ class RecordsViewModel(
             kind = if (isLoan) LoanDepositEntity.KIND_LOAN else LoanDepositEntity.KIND_DEPOSIT,
             personName = personName.trim(),
             amount = amount,
+            time = time,
+            rate = rate,
             notes = notes.trim(),
             date = existing?.date ?: now,
             updatedAt = now,
@@ -124,7 +128,8 @@ class RecordsViewModel(
         memberId: Long,
         title: String,
         period: String,
-        amount: Double,
+        amountDeposit: Double,
+        grandTotal: Double,
         isPaid: Boolean,
         notes: String,
     ) {
@@ -135,7 +140,9 @@ class RecordsViewModel(
             ownerId = ownerId,
             title = title.trim(),
             period = period.trim(),
-            amount = amount,
+            amount = grandTotal,
+            amountDeposit = amountDeposit,
+            grandTotal = grandTotal,
             isPaid = isPaid,
             notes = notes.trim(),
             dueDate = existing?.dueDate ?: now,

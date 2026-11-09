@@ -31,7 +31,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.ragul.ccms.ui.localization.Text
+import com.ragul.ccms.ui.localization.LanguageToggle
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -81,8 +82,10 @@ fun AuthScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            content = content,
-        )
+        ) {
+            LanguageToggle(modifier = Modifier.align(Alignment.End))
+            content()
+        }
     }
 }
 

@@ -40,6 +40,15 @@ class RecordModelsTest {
         assertFalse(record.isLoan)
     }
 
+    @Test
+    fun `loan record derives interest and total from amount time and rate`() {
+        val record = loan(kind = LoanDepositEntity.KIND_LOAN)
+            .copy(amount = 1_000.0, time = 2.0, rate = 10.0)
+
+        assertEquals(200.0, record.interest, 0.001)
+        assertEquals(1_200.0, record.total, 0.001)
+    }
+
     private fun loan(kind: String) = LoanDepositEntity(
         ownerId = "test-owner",
         kind = kind,
