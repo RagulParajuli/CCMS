@@ -84,6 +84,7 @@ import com.ragul.ccms.feature.auth.domain.AuthUser
 import com.ragul.ccms.feature.auth.presentation.AuthUiState
 import com.ragul.ccms.feature.auth.presentation.MessageBanner
 import com.ragul.ccms.feature.records.data.HistoryEntity
+import com.ragul.ccms.feature.records.data.FinancialTransactionEntity
 import com.ragul.ccms.feature.records.data.LoanDepositEntity
 import com.ragul.ccms.feature.records.data.MembershipEntity
 import com.ragul.ccms.feature.records.data.MonthlyDueEntity
@@ -117,6 +118,7 @@ fun DashboardScreen(
     val memberships by viewModel.memberships.collectAsStateWithLifecycle()
     val loanDeposits by viewModel.loanDeposits.collectAsStateWithLifecycle()
     val monthlyDues by viewModel.monthlyDues.collectAsStateWithLifecycle()
+    val financialTransactions by viewModel.financialTransactions.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
@@ -128,6 +130,7 @@ fun DashboardScreen(
             memberships = memberships,
             loanDeposits = loanDeposits,
             monthlyDues = monthlyDues,
+            financialTransactions = financialTransactions,
             history = history,
             message = message,
             onSignOut = onSignOut,
@@ -136,6 +139,7 @@ fun DashboardScreen(
             onDeleteMembership = viewModel::deleteMembership,
             onSaveLoanDeposit = viewModel::saveLoanDeposit,
             onDeleteLoanDeposit = viewModel::deleteLoanDeposit,
+            onSaveFinancialTransaction = viewModel::saveFinancialTransaction,
             onSaveMonthlyDue = viewModel::saveMonthlyDue,
             onDeleteMonthlyDue = viewModel::deleteMonthlyDue,
             onClearHistory = viewModel::clearHistory,
@@ -153,6 +157,7 @@ fun DashboardContent(
     memberships: List<MembershipEntity>,
     loanDeposits: List<LoanDepositEntity>,
     monthlyDues: List<MonthlyDueEntity>,
+    financialTransactions: List<FinancialTransactionEntity>,
     history: List<HistoryEntity>,
     message: String?,
     onSignOut: () -> Unit,
@@ -174,7 +179,8 @@ fun DashboardContent(
     onDeleteMembership: (MembershipEntity) -> Unit,
     onSaveLoanDeposit: (LoanDepositEntity?, Long, Boolean, String, Double, Double, Double, String) -> Unit,
     onDeleteLoanDeposit: (LoanDepositEntity) -> Unit,
-    onSaveMonthlyDue: (MonthlyDueEntity?, Long, String, String, Double, Double, Boolean, String) -> Unit,
+    onSaveFinancialTransaction: (FinancialTransactionEntity) -> Unit,
+    onSaveMonthlyDue: (MonthlyDueEntity?, Long, String, String, Double, Double, String) -> Unit,
     onDeleteMonthlyDue: (MonthlyDueEntity) -> Unit,
     onClearHistory: () -> Unit,
     onMessageShown: () -> Unit,
@@ -248,14 +254,20 @@ fun DashboardContent(
                         DashboardSection.LOAN_DEPOSIT -> LoanDepositSection(
                             loanDeposits = loanDeposits,
                             memberships = memberships,
+                            monthlyDues = monthlyDues,
+                            financialTransactions = financialTransactions,
                             onSave = onSaveLoanDeposit,
+                            onSaveTransaction = onSaveFinancialTransaction,
                             onDelete = onDeleteLoanDeposit,
                         )
 
                         DashboardSection.MONTHLY_DUE -> MonthlyDueSection(
                             monthlyDues = monthlyDues,
                             memberships = memberships,
+                            loans = loanDeposits.filter { it.isLoan },
+                            financialTransactions = financialTransactions,
                             onSave = onSaveMonthlyDue,
+                            onSaveTransaction = onSaveFinancialTransaction,
                             onDelete = onDeleteMonthlyDue,
                         )
 
@@ -935,6 +947,7 @@ private fun DashboardScreenPreview() {
             memberships = emptyList(),
             loanDeposits = emptyList(),
             monthlyDues = emptyList(),
+            financialTransactions = emptyList(),
             history = emptyList(),
             message = null,
             onSignOut = {},
@@ -943,7 +956,8 @@ private fun DashboardScreenPreview() {
             onDeleteMembership = {},
             onSaveLoanDeposit = { _, _, _, _, _, _, _, _ -> },
             onDeleteLoanDeposit = {},
-            onSaveMonthlyDue = { _, _, _, _, _, _, _, _ -> },
+            onSaveFinancialTransaction = {},
+            onSaveMonthlyDue = { _, _, _, _, _, _, _ -> },
             onDeleteMonthlyDue = {},
             onClearHistory = {},
             onMessageShown = {},

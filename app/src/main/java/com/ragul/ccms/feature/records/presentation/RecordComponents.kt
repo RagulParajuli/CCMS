@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragul.ccms.ui.theme.AuthPrimary
+import com.ragul.ccms.feature.records.domain.NepaliDate
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -42,6 +43,12 @@ internal fun formatDate(value: Long): String =
 
 internal fun formatDateTime(value: Long): String =
     SimpleDateFormat("dd MMM yyyy, h:mm a", Locale.getDefault()).format(Date(value))
+
+internal fun formatBsDate(value: Long): String {
+    val calendar = java.util.Calendar.getInstance().apply { timeInMillis = value }
+    return NepaliDate.fromAd(calendar.get(java.util.Calendar.YEAR), calendar.get(java.util.Calendar.MONTH) + 1, calendar.get(java.util.Calendar.DAY_OF_MONTH))?.format()
+        ?: "—"
+}
 
 internal fun formatAmount(value: Double): String =
     NumberFormat.getCurrencyInstance().format(value)

@@ -29,6 +29,7 @@ internal class FirestoreRecordsSync(
             listen("memberships", ::syncMemberships)
             listen("loanDeposits", ::syncLoanDeposits)
             listen("monthlyDues", ::syncMonthlyDues)
+            listen("financialTransactions", ::syncFinancialTransactions)
             listen("history", ::syncHistory)
         }
         scope.coroutineContext[Job]?.invokeOnCompletion { close() }
@@ -55,6 +56,15 @@ internal class FirestoreRecordsSync(
     fun save(due: MonthlyDueEntity) {
         document("monthlyDues", due.syncId).set(due.toCloud(), SetOptions.merge())
             .logFailure("monthly due")
+    }
+
+    fun save(transaction: FinancialTransactionEntity) {
+        document("financialTransactions", transaction.syncId).set(transaction.toCloud(), SetOptions.merge())
+            .logFailure("financial transaction")
+    }
+
+    fun delete(transaction: FinancialTransactionEntity) {
+        delete("financialTransactions", transaction.syncId)
     }
 
     fun delete(due: MonthlyDueEntity) {
@@ -121,6 +131,9 @@ internal class FirestoreRecordsSync(
         dao.observeMonthlyDues(ownerId).first().filter { it.syncId.isBlank() }.forEach {
             dao.upsertMonthlyDue(it.copy(syncId = UUID.randomUUID().toString()))
         }
+        dao.getAllFinancialTransactions(ownerId).filter { it.syncId.isBlank() }.forEach {
+            dao.upsertFinancialTransaction(it.copy(syncId = UUID.randomUUID().toString()))
+        }
         dao.getAllHistory(ownerId).filter { it.syncId.isBlank() }.forEach {
             dao.insertHistory(it.copy(syncId = UUID.randomUUID().toString()))
         }
@@ -132,6 +145,7 @@ internal class FirestoreRecordsSync(
                 "memberships" -> reconcileMembership(document)
                 "loanDeposits" -> reconcileLoanDeposit(document)
                 "monthlyDues" -> reconcileMonthlyDue(document)
+                "financialTransactions" -> reconcileFinancialTransaction(document)
                 "history" -> reconcileHistory(document)
             }
         }
@@ -157,6 +171,16 @@ internal class FirestoreRecordsSync(
     private suspend fun reconcileLoanDeposit(document: DocumentSnapshot) {
         val remote = document.toLoanDeposit() ?: return
         val local = dao.observeLoanDeposits(ownerId).first().firstOrNull { it.syncId == document.id }
+        if (local == null && remote.isLoan) {
+            val memberLoan = dao.getLoanForMember(ownerId, remote.memberId)
+            if (memberLoan != null) {
+                if (remote.updatedAt > memberLoan.updatedAt) {
+                    dao.upsertLoanDeposit(remote.copy(id = memberLoan.id, syncId = memberLoan.syncId))
+                }
+                delete("loanDeposits", remote.syncId)
+                return
+            }
+        }
         when {
             local == null -> dao.upsertLoanDeposit(remote)
             remote.updatedAt >= local.updatedAt -> {
@@ -168,6 +192,21 @@ internal class FirestoreRecordsSync(
     }
 
     private suspend fun syncMonthlyDues(document: DocumentSnapshot) = reconcileMonthlyDue(document)
+
+    private suspend fun syncFinancialTransactions(document: DocumentSnapshot) = reconcileFinancialTransaction(document)
+
+    private suspend fun reconcileFinancialTransaction(document: DocumentSnapshot) {
+        val remote = document.toFinancialTransaction() ?: return
+        val local = dao.getFinancialTransaction(ownerId, document.id)
+        when {
+            local == null -> dao.upsertFinancialTransaction(remote)
+            remote.updatedAt >= local.updatedAt -> {
+                val merged = remote.copy(id = local.id)
+                if (merged != local) dao.upsertFinancialTransaction(merged)
+            }
+            local.updatedAt > remote.updatedAt -> save(local)
+        }
+    }
 
     private suspend fun reconcileMonthlyDue(document: DocumentSnapshot) {
         val remote = document.toMonthlyDue() ?: return
@@ -205,6 +244,8 @@ internal class FirestoreRecordsSync(
                 .filter { it.syncId !in remoteIds }.forEach(::save)
             "monthlyDues" -> dao.observeMonthlyDues(ownerId).first()
                 .filter { it.syncId !in remoteIds }.forEach(::save)
+            "financialTransactions" -> dao.getAllFinancialTransactions(ownerId)
+                .filter { it.syncId !in remoteIds }.forEach(::save)
             "history" -> dao.getAllHistory(ownerId)
                 .filter { it.syncId !in remoteIds }.forEach(::save)
         }
@@ -215,6 +256,7 @@ internal class FirestoreRecordsSync(
             "memberships" -> dao.deleteMembershipBySyncId(ownerId, syncId)
             "loanDeposits" -> dao.deleteLoanDepositBySyncId(ownerId, syncId)
             "monthlyDues" -> dao.deleteMonthlyDueBySyncId(ownerId, syncId)
+            "financialTransactions" -> dao.deleteFinancialTransaction(ownerId, syncId)
             "history" -> dao.deleteHistoryBySyncId(ownerId, syncId)
         }
     }
@@ -263,6 +305,7 @@ internal class FirestoreRecordsSync(
         "amount" to amount,
         "time" to time,
         "rate" to rate,
+        "loanStatus" to loanStatus,
         "notes" to notes,
         "date" to date,
         "updatedAt" to updatedAt,
@@ -277,6 +320,7 @@ internal class FirestoreRecordsSync(
         "amount" to amount,
         "amountDeposit" to amountDeposit,
         "grandTotal" to grandTotal,
+        "monthlyPaymentAmount" to monthlyPaymentAmount,
         "isPaid" to isPaid,
         "notes" to notes,
         "dueDate" to dueDate,
@@ -290,6 +334,22 @@ internal class FirestoreRecordsSync(
         "action" to action,
         "summary" to summary,
         "timestamp" to timestamp,
+    )
+
+    private fun FinancialTransactionEntity.toCloud() = mapOf(
+        "ownerId" to ownerId,
+        "syncId" to syncId,
+        "memberId" to memberId,
+        "loanSyncId" to loanSyncId,
+        "dueSyncId" to dueSyncId,
+        "parentSyncId" to parentSyncId,
+        "kind" to kind,
+        "amount" to amount,
+        "date" to date,
+        "status" to status,
+        "notes" to notes,
+        "createdAt" to createdAt,
+        "updatedAt" to updatedAt,
     )
 
     private fun DocumentSnapshot.toMembership() = MembershipEntity(
@@ -321,6 +381,7 @@ internal class FirestoreRecordsSync(
         amount = getDouble("amount") ?: getLong("amount")?.toDouble() ?: 0.0,
         time = getDouble("time") ?: getLong("time")?.toDouble() ?: 0.0,
         rate = getDouble("rate") ?: getLong("rate")?.toDouble() ?: 0.0,
+        loanStatus = getString("loanStatus") ?: LoanDepositEntity.LOAN_STATUS_ACTIVE,
         notes = getString("notes") ?: "",
         date = getLong("date") ?: 0L,
         updatedAt = getLong("updatedAt") ?: 0L,
@@ -338,6 +399,7 @@ internal class FirestoreRecordsSync(
             amount = amount,
             amountDeposit = getDouble("amountDeposit") ?: getLong("amountDeposit")?.toDouble() ?: 0.0,
             grandTotal = getDouble("grandTotal") ?: getLong("grandTotal")?.toDouble() ?: amount,
+            monthlyPaymentAmount = getDouble("monthlyPaymentAmount") ?: getLong("monthlyPaymentAmount")?.toDouble() ?: 0.0,
             isPaid = getBoolean("isPaid") ?: false,
             notes = getString("notes") ?: "",
             dueDate = getLong("dueDate") ?: 0L,
@@ -345,6 +407,23 @@ internal class FirestoreRecordsSync(
             syncId = id,
         )
     }
+
+    private fun DocumentSnapshot.toFinancialTransaction() = FinancialTransactionEntity(
+        id = 0,
+        ownerId = ownerId,
+        memberId = getLong("memberId") ?: 0L,
+        loanSyncId = getString("loanSyncId") ?: "",
+        dueSyncId = getString("dueSyncId") ?: "",
+        parentSyncId = getString("parentSyncId") ?: "",
+        kind = getString("kind") ?: FinancialTransactionEntity.KIND_LOAN_REPAYMENT,
+        amount = getDouble("amount") ?: getLong("amount")?.toDouble() ?: 0.0,
+        date = getLong("date") ?: 0L,
+        status = getString("status") ?: FinancialTransactionEntity.STATUS_PENDING,
+        notes = getString("notes") ?: "",
+        createdAt = getLong("createdAt") ?: 0L,
+        updatedAt = getLong("updatedAt") ?: 0L,
+        syncId = id,
+    )
 
     private fun DocumentSnapshot.toHistory() = HistoryEntity(
         id = 0,

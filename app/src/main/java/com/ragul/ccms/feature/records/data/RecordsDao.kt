@@ -41,6 +41,30 @@ interface RecordsDao {
     @Query("DELETE FROM loan_deposits WHERE id = :id AND ownerId = :ownerId")
     suspend fun deleteLoanDeposit(id: Long, ownerId: String)
 
+    @Query("SELECT * FROM loan_deposits WHERE ownerId = :ownerId AND memberId = :memberId AND kind = 'LOAN' ORDER BY updatedAt DESC LIMIT 1")
+    suspend fun getLoanForMember(ownerId: String, memberId: Long): LoanDepositEntity?
+
+    @Query("SELECT * FROM loan_deposits WHERE ownerId = :ownerId AND syncId = :syncId LIMIT 1")
+    suspend fun getLoanBySyncId(ownerId: String, syncId: String): LoanDepositEntity?
+
+    @Query("SELECT * FROM financial_transactions WHERE ownerId = :ownerId ORDER BY date DESC, id DESC")
+    fun observeFinancialTransactions(ownerId: String): Flow<List<FinancialTransactionEntity>>
+
+    @Query("SELECT * FROM financial_transactions WHERE ownerId = :ownerId AND syncId = :syncId LIMIT 1")
+    suspend fun getFinancialTransaction(ownerId: String, syncId: String): FinancialTransactionEntity?
+
+    @Query("SELECT * FROM financial_transactions WHERE ownerId = :ownerId")
+    suspend fun getAllFinancialTransactions(ownerId: String): List<FinancialTransactionEntity>
+
+    @Upsert
+    suspend fun upsertFinancialTransaction(transaction: FinancialTransactionEntity)
+
+    @Query("DELETE FROM financial_transactions WHERE ownerId = :ownerId AND syncId = :syncId")
+    suspend fun deleteFinancialTransaction(ownerId: String, syncId: String)
+
+    @Query("DELETE FROM financial_transactions WHERE ownerId = :ownerId AND loanSyncId = :loanSyncId")
+    suspend fun deleteFinancialTransactionsByLoanSyncId(ownerId: String, loanSyncId: String)
+
     @Query("SELECT * FROM monthly_dues WHERE ownerId = :ownerId ORDER BY updatedAt DESC")
     fun observeMonthlyDues(ownerId: String): Flow<List<MonthlyDueEntity>>
 

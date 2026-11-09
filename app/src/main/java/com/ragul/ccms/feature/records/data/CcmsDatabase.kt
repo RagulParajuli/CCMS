@@ -12,9 +12,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MembershipEntity::class,
         LoanDepositEntity::class,
         MonthlyDueEntity::class,
+        FinancialTransactionEntity::class,
         HistoryEntity::class,
     ],
-    version = 5,
+    version = 7,
     exportSchema = false,
 )
 abstract class CcmsDatabase : RoomDatabase() {
@@ -32,7 +33,7 @@ abstract class CcmsDatabase : RoomDatabase() {
                     CcmsDatabase::class.java,
                     "ccms.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigrationOnDowngrade(false)
                     .build()
                     .also { instance = it }
@@ -78,6 +79,31 @@ abstract class CcmsDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE monthly_dues ADD COLUMN grandTotal REAL NOT NULL DEFAULT 0")
                 // Existing dues only stored one amount, so it becomes the grand total.
                 database.execSQL("UPDATE monthly_dues SET grandTotal = amount WHERE grandTotal = 0")
+            }
+        }
+
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE monthly_dues ADD COLUMN monthlyPaymentAmount REAL NOT NULL DEFAULT 0")
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS financial_transactions (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "ownerId TEXT NOT NULL, memberId INTEGER NOT NULL, " +
+                        "loanSyncId TEXT NOT NULL DEFAULT '', dueSyncId TEXT NOT NULL DEFAULT '', " +
+                        "parentSyncId TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, amount REAL NOT NULL, " +
+                        "date INTEGER NOT NULL, status TEXT NOT NULL, notes TEXT NOT NULL, " +
+                        "createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, syncId TEXT NOT NULL DEFAULT ''" +
+                        ")",
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_transactions_ownerId ON financial_transactions(ownerId)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_transactions_memberId ON financial_transactions(memberId)")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_financial_transactions_syncId ON financial_transactions(syncId)")
+            }
+        }
+
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE loan_deposits ADD COLUMN loanStatus TEXT NOT NULL DEFAULT 'ACTIVE'")
             }
         }
     }

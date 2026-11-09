@@ -34,6 +34,9 @@ class RecordsRepository(
     fun observeLoanDeposits(ownerId: String): Flow<List<LoanDepositEntity>> =
         dao.observeLoanDeposits(ownerId)
 
+    fun observeFinancialTransactions(ownerId: String): Flow<List<FinancialTransactionEntity>> =
+        dao.observeFinancialTransactions(ownerId)
+
     fun observeMonthlyDues(ownerId: String): Flow<List<MonthlyDueEntity>> =
         dao.observeMonthlyDues(ownerId)
 
@@ -99,6 +102,14 @@ class RecordsRepository(
             "$type · ${entity.personName} · ${formatAmount(entity.amount)}", now,
         )
         database.withTransaction {
+            if (entity.isLoan) {
+                if (!isNew && dao.getAllFinancialTransactions(ownerId).any { it.loanSyncId == entity.syncId }) {
+                    val original = dao.observeLoanDeposits(ownerId).first().firstOrNull { it.id == entity.id }
+                    require(original == null || (original.amount == entity.amount && original.time == entity.time && original.rate == entity.rate)) {
+                        "Loan terms cannot change after financial transactions are recorded."
+                    }
+                }
+            }
             dao.upsertLoanDeposit(entity)
             dao.insertHistory(history)
         }
@@ -106,14 +117,138 @@ class RecordsRepository(
         firestoreSync?.save(history)
     }
 
+    suspend fun saveFinancialTransaction(ownerId: String, transaction: FinancialTransactionEntity) {
+        require(transaction.amount > 0.0) { "Transaction amount must be greater than zero." }
+        val now = System.currentTimeMillis()
+        val syncId = transaction.syncId.ifBlank { UUID.randomUUID().toString() }
+        val previous = dao.getFinancialTransaction(ownerId, syncId)
+        val entity = transaction.copy(
+            ownerId = ownerId,
+            syncId = syncId,
+            createdAt = previous?.createdAt ?: now,
+            updatedAt = now,
+        )
+        val allTransactions = dao.getAllFinancialTransactions(ownerId).filterNot { it.syncId == syncId }
+        validateFinancialTransaction(ownerId, entity, allTransactions)
+        val history = if (previous == null) newHistory(
+            ownerId,
+            RecordSection.LOAN_DEPOSIT,
+            ACTION_ADDED,
+            "${entity.kind} · member #${entity.memberId} · ${formatAmount(entity.amount)} · ${entity.status}",
+            now,
+        ) else null
+        var updatedLoan: LoanDepositEntity? = null
+        database.withTransaction {
+            dao.upsertFinancialTransaction(entity)
+            if (history != null) dao.insertHistory(history)
+            if (entity.kind == FinancialTransactionEntity.KIND_LOAN_REPAYMENT ||
+                entity.kind == FinancialTransactionEntity.KIND_EXTRA_ALLOCATION
+            ) {
+                val loan = dao.getLoanBySyncId(ownerId, entity.loanSyncId)
+                if (loan != null && loan.syncId == entity.loanSyncId) {
+                    val paid = dao.getAllFinancialTransactions(ownerId).filter {
+                        it.memberId == entity.memberId && it.loanSyncId == loan.syncId &&
+                            it.status == FinancialTransactionEntity.STATUS_PAID &&
+                            (it.kind == FinancialTransactionEntity.KIND_LOAN_REPAYMENT ||
+                                it.kind == FinancialTransactionEntity.KIND_EXTRA_ALLOCATION)
+                    }.sumOf { it.amount }
+                    val status = if (loan.total - paid <= 0.000001) {
+                        LoanDepositEntity.LOAN_STATUS_PAID_OFF
+                    } else {
+                        LoanDepositEntity.LOAN_STATUS_ACTIVE
+                    }
+                    updatedLoan = loan.copy(loanStatus = status, updatedAt = now)
+                    dao.upsertLoanDeposit(updatedLoan!!)
+                }
+            }
+        }
+        firestoreSync?.save(entity)
+        updatedLoan?.let { firestoreSync?.save(it) }
+        if (history != null) firestoreSync?.save(history)
+    }
+
+    private suspend fun validateFinancialTransaction(
+        ownerId: String,
+        transaction: FinancialTransactionEntity,
+        existing: List<FinancialTransactionEntity>,
+    ) {
+        if (transaction.status != FinancialTransactionEntity.STATUS_PAID) return
+        when (transaction.kind) {
+            FinancialTransactionEntity.KIND_LOAN_REPAYMENT,
+            FinancialTransactionEntity.KIND_EXTRA_ALLOCATION -> {
+                val loan = dao.getLoanBySyncId(ownerId, transaction.loanSyncId)
+                    ?: throw IllegalArgumentException("A loan is required for this repayment.")
+                require(transaction.loanSyncId == loan.syncId) { "Transaction is linked to a different loan record." }
+                val balance = (loan.total - existing.filter {
+                    it.memberId == transaction.memberId && it.loanSyncId == loan.syncId &&
+                        it.status == FinancialTransactionEntity.STATUS_PAID &&
+                        (it.kind == FinancialTransactionEntity.KIND_LOAN_REPAYMENT ||
+                            it.kind == FinancialTransactionEntity.KIND_EXTRA_ALLOCATION)
+                }.sumOf { it.amount }).coerceAtLeast(0.0)
+                require(transaction.amount <= balance + 0.000001) { "Payment exceeds the outstanding loan balance." }
+                if (transaction.kind == FinancialTransactionEntity.KIND_LOAN_REPAYMENT && transaction.dueSyncId.isNotBlank()) {
+                    val due = dao.observeMonthlyDues(ownerId).first().firstOrNull { it.syncId == transaction.dueSyncId }
+                        ?: throw IllegalArgumentException("Monthly due was not found.")
+                    require(due.memberId == transaction.memberId) { "Monthly due belongs to a different member." }
+                    val paidForDue = existing.filter {
+                        it.dueSyncId == due.syncId && it.kind == FinancialTransactionEntity.KIND_LOAN_REPAYMENT &&
+                            it.status == FinancialTransactionEntity.STATUS_PAID
+                    }.sumOf { it.amount }
+                    val dueBalance = (due.monthlyPaymentAmount - paidForDue).coerceAtLeast(0.0)
+                    require(transaction.amount <= dueBalance + 0.000001) {
+                        "Payment exceeds the unpaid monthly amount. Record the extra as a separate deposit."
+                    }
+                }
+                if (transaction.kind == FinancialTransactionEntity.KIND_EXTRA_ALLOCATION) {
+                    require(transaction.parentSyncId.isNotBlank()) { "Select an extra deposit to allocate." }
+                    val deposit = existing.firstOrNull {
+                        it.syncId == transaction.parentSyncId && it.kind == FinancialTransactionEntity.KIND_EXTRA_DEPOSIT &&
+                            it.status == FinancialTransactionEntity.STATUS_PAID && it.memberId == transaction.memberId &&
+                            it.loanSyncId == transaction.loanSyncId
+                    } ?: throw IllegalArgumentException("A confirmed extra deposit is required for allocation.")
+                    val available = deposit.amount - existing.filter {
+                        it.parentSyncId == deposit.syncId && it.status == FinancialTransactionEntity.STATUS_PAID &&
+                            (it.kind == FinancialTransactionEntity.KIND_EXTRA_WITHDRAWAL || it.kind == FinancialTransactionEntity.KIND_EXTRA_ALLOCATION)
+                    }.sumOf { it.amount }
+                    require(transaction.amount <= available + 0.000001) { "Allocation exceeds the available extra deposit." }
+                }
+            }
+            FinancialTransactionEntity.KIND_EXTRA_WITHDRAWAL -> {
+                val deposit = existing.firstOrNull {
+                    it.syncId == transaction.parentSyncId && it.kind == FinancialTransactionEntity.KIND_EXTRA_DEPOSIT &&
+                        it.status == FinancialTransactionEntity.STATUS_PAID && it.memberId == transaction.memberId &&
+                        it.loanSyncId == transaction.loanSyncId
+                } ?: throw IllegalArgumentException("A confirmed extra deposit is required for withdrawal.")
+                val available = deposit.amount - existing.filter {
+                    it.parentSyncId == deposit.syncId && it.status == FinancialTransactionEntity.STATUS_PAID &&
+                        (it.kind == FinancialTransactionEntity.KIND_EXTRA_WITHDRAWAL || it.kind == FinancialTransactionEntity.KIND_EXTRA_ALLOCATION)
+                }.sumOf { it.amount }
+                require(transaction.amount <= available + 0.000001) { "Withdrawal exceeds the available extra deposit." }
+            }
+            FinancialTransactionEntity.KIND_EXTRA_DEPOSIT -> Unit
+            else -> throw IllegalArgumentException("Unknown financial transaction type.")
+        }
+    }
+
     suspend fun deleteLoanDeposit(ownerId: String, loanDeposit: LoanDepositEntity) {
         val type = if (loanDeposit.isLoan) "Loan" else "Deposit"
         val history = newHistory(
             ownerId, RecordSection.LOAN_DEPOSIT, ACTION_DELETED, "$type · ${loanDeposit.personName} · ${formatAmount(loanDeposit.amount)}",
         )
+        val associatedTransactions = if (loanDeposit.isLoan && loanDeposit.syncId.isNotBlank()) {
+            dao.getAllFinancialTransactions(ownerId).filter { it.loanSyncId == loanDeposit.syncId }
+        } else {
+            emptyList()
+        }
         database.withTransaction {
+            if (loanDeposit.isLoan && loanDeposit.syncId.isNotBlank()) {
+                dao.deleteFinancialTransactionsByLoanSyncId(ownerId, loanDeposit.syncId)
+            }
             dao.deleteLoanDeposit(loanDeposit.id, ownerId)
             dao.insertHistory(history)
+        }
+        associatedTransactions.forEach { transaction ->
+            firestoreSync?.delete(transaction)
         }
         firestoreSync?.delete(loanDeposit)
         firestoreSync?.save(history)
@@ -129,6 +264,10 @@ class RecordsRepository(
             "${entity.title} · ${entity.period} · $statusText · ${formatAmount(entity.amount)}", now,
         )
         database.withTransaction {
+            val duplicatePeriod = dao.observeMonthlyDues(ownerId).first().firstOrNull {
+                it.memberId == entity.memberId && it.period == entity.period && it.id != entity.id
+            }
+            require(duplicatePeriod == null) { "A monthly due already exists for this member and period." }
             dao.upsertMonthlyDue(entity)
             dao.insertHistory(history)
         }

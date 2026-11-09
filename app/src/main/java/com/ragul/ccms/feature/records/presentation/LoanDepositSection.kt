@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -55,16 +56,22 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragul.ccms.feature.records.data.LoanDepositEntity
+import com.ragul.ccms.feature.records.data.FinancialTransactionEntity
 import com.ragul.ccms.feature.records.data.MembershipEntity
+import com.ragul.ccms.feature.records.data.MonthlyDueEntity
 import com.ragul.ccms.feature.records.domain.LoanCalculator
+import com.ragul.ccms.feature.records.domain.NepaliDate
 import com.ragul.ccms.ui.theme.AuthPrimary
 import com.ragul.ccms.ui.theme.CCMSTheme
 import com.ragul.ccms.ui.theme.RecordLoanDeposit
+import java.util.UUID
 
 @Composable
 fun LoanDepositSection(
     loanDeposits: List<LoanDepositEntity>,
     memberships: List<MembershipEntity> = emptyList(),
+    monthlyDues: List<MonthlyDueEntity> = emptyList(),
+    financialTransactions: List<FinancialTransactionEntity> = emptyList(),
     onSave: (
         existing: LoanDepositEntity?,
         memberId: Long,
@@ -76,17 +83,19 @@ fun LoanDepositSection(
         notes: String,
     ) -> Unit,
     onDelete: (LoanDepositEntity) -> Unit,
+    onSaveTransaction: (FinancialTransactionEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showForm by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableLongStateOf(0L) }
     var pendingDeleteId by rememberSaveable { mutableLongStateOf(0L) }
+    var transactionLoanId by rememberSaveable { mutableLongStateOf(0L) }
 
     val editing = loanDeposits.firstOrNull { it.id == editingId }
     val pendingDelete = loanDeposits.firstOrNull { it.id == pendingDeleteId }
 
-    val totalLoans = loanDeposits.filter { it.isLoan }.sumOf { it.total }
-    val totalDeposits = loanDeposits.filterNot { it.isLoan }.sumOf { it.total }
+    val filteredTransactions = financialTransactions
+    val filteredLoans = loanDeposits
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -102,17 +111,6 @@ fun LoanDepositSection(
                 )
             }
 
-            if (loanDeposits.isNotEmpty()) {
-                item {
-                    SummaryRow(
-                        leftLabel = "Loans",
-                        leftValue = formatAmount(totalLoans),
-                        rightLabel = "Deposits",
-                        rightValue = formatAmount(totalDeposits),
-                    )
-                }
-            }
-
             if (loanDeposits.isEmpty()) {
                 item {
                     EmptyState(
@@ -122,9 +120,13 @@ fun LoanDepositSection(
                     )
                 }
             } else {
-                items(loanDeposits, key = { it.id }) { record ->
+                items(filteredLoans, key = { it.id }) { record ->
                     LoanDepositCard(
                         record = record,
+                        transactions = financialTransactions.filter { it.memberId == record.memberId && it.loanSyncId == record.syncId },
+                        visibleTransactions = filteredTransactions.filter { it.memberId == record.memberId && it.loanSyncId == record.syncId },
+                        onAddTransaction = { transactionLoanId = record.id },
+                        onUpdateTransaction = onSaveTransaction,
                         onEdit = {
                             editingId = record.id
                             showForm = true
@@ -156,6 +158,7 @@ fun LoanDepositSection(
             LoanDepositFormDialog(
                 initial = editing,
                 memberships = memberships,
+                existingLoans = loanDeposits.filter { it.isLoan },
                 onDismiss = { showForm = false },
                 onSave = { memberId, isLoan, personName, amount, time, rate, notes ->
                     onSave(editing, memberId, isLoan, personName, amount, time, rate, notes)
@@ -192,63 +195,34 @@ fun LoanDepositSection(
             },
         )
     }
+
+    val transactionLoan = loanDeposits.firstOrNull { it.id == transactionLoanId && it.isLoan }
+    transactionLoan?.let { loan ->
+        FinancialTransactionDialog(
+            loan = loan,
+            dues = monthlyDues.filter { it.memberId == loan.memberId },
+            transactions = financialTransactions.filter { it.memberId == loan.memberId },
+            onDismiss = { transactionLoanId = 0L },
+            onSave = { onSaveTransaction(it); transactionLoanId = 0L },
+        )
+    }
 }
 
 @PreviewLightDark
 @Composable
 private fun LoanDepositSectionPreview() {
     CCMSTheme {
-        LoanDepositSection(loanDeposits = emptyList(), memberships = emptyList(), onSave = { _, _, _, _, _, _, _, _ -> }, onDelete = {})
-    }
-}
-
-@Composable
-private fun SummaryRow(
-    leftLabel: String,
-    leftValue: String,
-    rightLabel: String,
-    rightValue: String,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        SummaryBox(
-            label = leftLabel,
-            value = leftValue,
-            modifier = Modifier.weight(1f),
-        )
-        SummaryBox(
-            label = rightLabel,
-            value = rightValue,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun SummaryBox(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = RecordLoanDeposit.copy(alpha = 0.08f)),
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(text = label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                text = value,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
+        LoanDepositSection(loanDeposits = emptyList(), memberships = emptyList(), onSave = { _, _, _, _, _, _, _, _ -> }, onDelete = {}, onSaveTransaction = {})
     }
 }
 
 @Composable
 private fun LoanDepositCard(
     record: LoanDepositEntity,
+    transactions: List<FinancialTransactionEntity>,
+    visibleTransactions: List<FinancialTransactionEntity>,
+    onAddTransaction: () -> Unit,
+    onUpdateTransaction: (FinancialTransactionEntity) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -311,7 +285,7 @@ private fun LoanDepositCard(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "Total",
+                        text = "Grand Total",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -345,6 +319,27 @@ private fun LoanDepositCard(
                 )
             }
 
+            if (record.isLoan) {
+                val paid = transactions.filter {
+                    it.status == FinancialTransactionEntity.STATUS_PAID &&
+                        (it.kind == FinancialTransactionEntity.KIND_LOAN_REPAYMENT || it.kind == FinancialTransactionEntity.KIND_EXTRA_ALLOCATION)
+                }.sumOf { it.amount }
+                val balance = (record.total - paid).coerceAtLeast(0.0)
+                Text(text = "Grand Total ${formatAmount(record.total)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = "Total Paid ${formatAmount(paid)} · Outstanding ${formatAmount(balance)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                StatusPill(text = record.loanStatus.replace('_', ' '), color = if (record.loanStatus == LoanDepositEntity.LOAN_STATUS_PAID_OFF) Color(0xFF10B981) else RecordLoanDeposit)
+                visibleTransactions.sortedByDescending { it.date }.forEach { transaction ->
+                    Text(text = "${transaction.kind.replace('_', ' ')} · ${formatAmount(transaction.amount)} · ${transaction.status} · ${formatBsDate(transaction.date)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (transaction.status == FinancialTransactionEntity.STATUS_PENDING) {
+                        Row {
+                            TextButton(onClick = { onUpdateTransaction(transaction.copy(status = FinancialTransactionEntity.STATUS_PAID)) }) { Text("Mark paid") }
+                            TextButton(onClick = { onUpdateTransaction(transaction.copy(status = FinancialTransactionEntity.STATUS_CANCELLED)) }) { Text("Cancel") }
+                        }
+                    }
+                }
+                TextButton(onClick = onAddTransaction) { Text("Add financial transaction") }
+            }
+
             if (record.notes.isNotBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(text = record.notes, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -372,9 +367,112 @@ private fun LoanDepositCard(
 }
 
 @Composable
+private fun FinancialTransactionDialog(
+    loan: LoanDepositEntity,
+    dues: List<MonthlyDueEntity>,
+    transactions: List<FinancialTransactionEntity>,
+    onDismiss: () -> Unit,
+    onSave: (FinancialTransactionEntity) -> Unit,
+) {
+    var kind by rememberSaveable { mutableStateOf(FinancialTransactionEntity.KIND_LOAN_REPAYMENT) }
+    var amountText by rememberSaveable { mutableStateOf("") }
+    var notes by rememberSaveable { mutableStateOf("") }
+    var transactionSyncId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
+    var status by rememberSaveable { mutableStateOf(FinancialTransactionEntity.STATUS_PENDING) }
+    var dueSyncId by rememberSaveable { mutableStateOf("") }
+    var parentSyncId by rememberSaveable { mutableStateOf("") }
+    var kindMenu by remember { mutableStateOf(false) }
+    var dueMenu by remember { mutableStateOf(false) }
+    var parentMenu by remember { mutableStateOf(false) }
+    val amount = amountText.replace(',', '.').toDoubleOrNull()
+    val needsParent = kind == FinancialTransactionEntity.KIND_EXTRA_WITHDRAWAL || kind == FinancialTransactionEntity.KIND_EXTRA_ALLOCATION
+    val deposits = transactions.filter { it.kind == FinancialTransactionEntity.KIND_EXTRA_DEPOSIT && it.status == FinancialTransactionEntity.STATUS_PAID }
+    val remainingByDeposit = deposits.associate { deposit ->
+        deposit.syncId to (deposit.amount - transactions.filter {
+            it.parentSyncId == deposit.syncId && it.status == FinancialTransactionEntity.STATUS_PAID &&
+                (it.kind == FinancialTransactionEntity.KIND_EXTRA_WITHDRAWAL || it.kind == FinancialTransactionEntity.KIND_EXTRA_ALLOCATION)
+        }.sumOf { it.amount }).coerceAtLeast(0.0)
+    }
+    val valid = amount != null && amount > 0.0 && (!needsParent || parentSyncId.isNotBlank())
+
+    RecordFormDialog(
+        title = "Add financial transaction · #${loan.memberId} ${loan.personName}",
+        onDismiss = onDismiss,
+        onSave = {
+            val now = System.currentTimeMillis()
+            onSave(FinancialTransactionEntity(
+                ownerId = loan.ownerId,
+                memberId = loan.memberId,
+                loanSyncId = loan.syncId,
+                dueSyncId = dueSyncId,
+                parentSyncId = parentSyncId,
+                kind = kind,
+                amount = amount ?: 0.0,
+                date = now,
+                status = status,
+                notes = notes.trim(),
+                syncId = transactionSyncId,
+                createdAt = now,
+                updatedAt = now,
+            ))
+        },
+        saveEnabled = valid,
+    ) {
+        Box {
+            OutlinedTextField(value = kind.replace('_', ' '), onValueChange = {}, readOnly = true, label = { Text("Transaction type") }, modifier = Modifier.fillMaxWidth(), trailingIcon = {
+                IconButton(onClick = { kindMenu = true }) { Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose transaction type") }
+            })
+            DropdownMenu(expanded = kindMenu, onDismissRequest = { kindMenu = false }) {
+                listOf(
+                    FinancialTransactionEntity.KIND_LOAN_REPAYMENT,
+                    FinancialTransactionEntity.KIND_EXTRA_DEPOSIT,
+                    FinancialTransactionEntity.KIND_EXTRA_WITHDRAWAL,
+                    FinancialTransactionEntity.KIND_EXTRA_ALLOCATION,
+                ).forEach { value -> DropdownMenuItem(text = { Text(value.replace('_', ' ')) }, onClick = { kind = value; kindMenu = false }) }
+            }
+        }
+        if (kind == FinancialTransactionEntity.KIND_LOAN_REPAYMENT && dues.isNotEmpty()) {
+            Box {
+                OutlinedTextField(value = dues.firstOrNull { it.syncId == dueSyncId }?.period ?: "Select monthly due (optional)", onValueChange = {}, readOnly = true,
+                    label = { Text("Monthly due") }, modifier = Modifier.fillMaxWidth(), trailingIcon = {
+                        IconButton(onClick = { dueMenu = true }) { Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose monthly due") }
+                    })
+                DropdownMenu(expanded = dueMenu, onDismissRequest = { dueMenu = false }) {
+                    DropdownMenuItem(text = { Text("No linked monthly due") }, onClick = { dueSyncId = ""; dueMenu = false })
+                    dues.forEach { due -> DropdownMenuItem(text = { Text(due.period) }, onClick = { dueSyncId = due.syncId; dueMenu = false }) }
+                }
+            }
+        }
+        if (needsParent) {
+            Box {
+                OutlinedTextField(value = deposits.firstOrNull { it.syncId == parentSyncId }?.let { "${formatAmount(remainingByDeposit[it.syncId] ?: 0.0)} available" } ?: "Select extra deposit",
+                    onValueChange = {}, readOnly = true, label = { Text("Extra deposit") }, modifier = Modifier.fillMaxWidth(), trailingIcon = {
+                        IconButton(onClick = { parentMenu = true }) { Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose extra deposit") }
+                    })
+                DropdownMenu(expanded = parentMenu, onDismissRequest = { parentMenu = false }) {
+                    deposits.filter { (remainingByDeposit[it.syncId] ?: 0.0) > 0.0 }.forEach { deposit ->
+                        DropdownMenuItem(text = { Text("${formatAmount(remainingByDeposit[deposit.syncId] ?: 0.0)} available") }, onClick = { parentSyncId = deposit.syncId; parentMenu = false })
+                    }
+                }
+            }
+        }
+        FormTextField(value = amountText, onValueChange = { amountText = it }, label = "Amount *", keyboardType = KeyboardType.Decimal, isError = amountText.isNotBlank() && (amount == null || amount <= 0.0))
+        Text(text = "Date: ${formatBsDate(System.currentTimeMillis())}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = "Payment status", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(FinancialTransactionEntity.STATUS_PENDING, FinancialTransactionEntity.STATUS_PAID, FinancialTransactionEntity.STATUS_CANCELLED).forEach { value ->
+                ChoiceChip(label = value, selected = status == value, onClick = { status = value })
+            }
+        }
+        FormTextField(value = notes, onValueChange = { notes = it }, label = "Notes", singleLine = false)
+    }
+}
+
+@Composable
 private fun LoanDepositFormDialog(
     initial: LoanDepositEntity?,
     memberships: List<MembershipEntity>,
+    existingLoans: List<LoanDepositEntity>,
     onDismiss: () -> Unit,
     onSave: (
         memberId: Long,
@@ -404,24 +502,17 @@ private fun LoanDepositFormDialog(
 
     var dropdownExpanded by remember { mutableStateOf(false) }
 
-    val amount = amountText.toNumberOrNull()
-    val time = timeText.toNumberOrNull()
-    val rate = rateText.toNumberOrNull()
-    val amountValid = amount != null && amount > 0.0
-    val timeValid = time != null && time > 0.0
-    val rateValid = rate != null && rate >= 0.0
+    val principal = amountText.toNumberOrNull() ?: 0.0
+    val time = timeText.toNumberOrNull() ?: 0.0
+    val rate = rateText.toNumberOrNull() ?: 0.0
+
+    val amountValid = principal > 0.0
+    val timeValid = !isLoan || time > 0.0
+    val rateValid = !isLoan || rate >= 0.0
     val valuesValid = amountValid && timeValid && rateValid
 
-    val interest = if (valuesValid) {
-        LoanCalculator.interest(amount ?: 0.0, time ?: 0.0, rate ?: 0.0)
-    } else {
-        0.0
-    }
-    val total = if (valuesValid) {
-        LoanCalculator.total(amount ?: 0.0, time ?: 0.0, rate ?: 0.0)
-    } else {
-        0.0
-    }
+    val interest = if (valuesValid && isLoan) LoanCalculator.interest(principal, time, rate) else 0.0
+    val total = if (valuesValid && isLoan) LoanCalculator.total(principal, time, rate) else principal
 
     RecordFormDialog(
         title = if (initial == null) "Add Record" else "Edit Record",
@@ -431,13 +522,13 @@ private fun LoanDepositFormDialog(
                 memberId,
                 isLoan,
                 personName,
-                amount ?: 0.0,
-                time ?: 0.0,
-                rate ?: 0.0,
+                principal,
+                if (isLoan) time else 0.0,
+                if (isLoan) rate else 0.0,
                 notes,
             )
         },
-        saveEnabled = personName.isNotBlank() && valuesValid,
+        saveEnabled = personName.isNotBlank() && memberId > 0L && valuesValid,
     ) {
         Text(text = "Type", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -453,15 +544,12 @@ private fun LoanDepositFormDialog(
             )
         }
 
-        if (memberships.isNotEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = if (memberId > 0) "#$memberId - $personName" else personName,
-                    onValueChange = {
-                        personName = it
-                        memberId = 0L
-                    },
-                    label = { Text(text = "Member Name (Select or Type) *") },
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(text = "Member Name *") },
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
                         IconButton(onClick = { dropdownExpanded = true }) {
@@ -478,13 +566,12 @@ private fun LoanDepositFormDialog(
                     modifier = Modifier.fillMaxWidth(0.85f),
                 ) {
                     memberships.forEach { m ->
+                        val existingMemberLoan = existingLoans.firstOrNull { it.memberId == m.memberId }
                         DropdownMenuItem(
                             text = {
-                                Text(
-                                    text = "#${m.memberId} - ${m.name}",
-                                    fontWeight = FontWeight.Bold,
-                                )
+                                Text(text = "#${m.memberId} - ${m.name}${if (existingMemberLoan != null && existingMemberLoan.id != initial?.id) " · Loan exists" else ""}", fontWeight = FontWeight.Bold)
                             },
+                            enabled = !isLoan || existingMemberLoan == null || existingMemberLoan.id == initial?.id,
                             onClick = {
                                 memberId = m.memberId
                                 personName = m.name
@@ -496,14 +583,6 @@ private fun LoanDepositFormDialog(
                         )
                     }
                 }
-            }
-        } else {
-            FormTextField(
-                value = personName,
-                onValueChange = { personName = it },
-                label = "Member Name *",
-                isError = personName.isBlank(),
-            )
         }
 
         FormTextField(

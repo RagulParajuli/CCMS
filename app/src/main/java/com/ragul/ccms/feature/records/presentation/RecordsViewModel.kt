@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.ragul.ccms.feature.records.data.HistoryEntity
+import com.ragul.ccms.feature.records.data.FinancialTransactionEntity
 import com.ragul.ccms.feature.records.data.LoanDepositEntity
 import com.ragul.ccms.feature.records.data.MembershipEntity
 import com.ragul.ccms.feature.records.data.MonthlyDueEntity
@@ -38,6 +39,9 @@ class RecordsViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val monthlyDues: StateFlow<List<MonthlyDueEntity>> = repository.observeMonthlyDues(ownerId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val financialTransactions: StateFlow<List<FinancialTransactionEntity>> = repository.observeFinancialTransactions(ownerId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val history: StateFlow<List<HistoryEntity>> = repository.observeHistory(ownerId)
@@ -110,6 +114,7 @@ class RecordsViewModel(
             amount = amount,
             time = time,
             rate = rate,
+            loanStatus = existing?.loanStatus ?: LoanDepositEntity.LOAN_STATUS_ACTIVE,
             notes = notes.trim(),
             date = existing?.date ?: now,
             updatedAt = now,
@@ -123,14 +128,19 @@ class RecordsViewModel(
         write("Record deleted.") { repository.deleteLoanDeposit(ownerId, loanDeposit) }
     }
 
+    fun saveFinancialTransaction(transaction: FinancialTransactionEntity) {
+        write("Financial transaction saved.") {
+            repository.saveFinancialTransaction(ownerId, transaction.copy(ownerId = ownerId))
+        }
+    }
+
     fun saveMonthlyDue(
         existing: MonthlyDueEntity?,
         memberId: Long,
         title: String,
         period: String,
-        amountDeposit: Double,
         grandTotal: Double,
-        isPaid: Boolean,
+        monthlyPaymentAmount: Double,
         notes: String,
     ) {
         val now = System.currentTimeMillis()
@@ -141,9 +151,10 @@ class RecordsViewModel(
             title = title.trim(),
             period = period.trim(),
             amount = grandTotal,
-            amountDeposit = amountDeposit,
+            amountDeposit = existing?.amountDeposit ?: 0.0,
             grandTotal = grandTotal,
-            isPaid = isPaid,
+            monthlyPaymentAmount = monthlyPaymentAmount,
+            isPaid = existing?.isPaid ?: false,
             notes = notes.trim(),
             dueDate = existing?.dueDate ?: now,
             updatedAt = now,

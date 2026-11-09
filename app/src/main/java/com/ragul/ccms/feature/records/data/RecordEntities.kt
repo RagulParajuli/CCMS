@@ -44,6 +44,7 @@ data class LoanDepositEntity(
     @ColumnInfo(defaultValue = "0") val time: Double = 0.0,
     /** Annual interest rate in percent. */
     @ColumnInfo(defaultValue = "0") val rate: Double = 0.0,
+    @ColumnInfo(defaultValue = "'ACTIVE'") val loanStatus: String = LOAN_STATUS_ACTIVE,
     val notes: String,
     val date: Long,
     val updatedAt: Long,
@@ -60,6 +61,8 @@ data class LoanDepositEntity(
     companion object {
         const val KIND_LOAN = "LOAN"
         const val KIND_DEPOSIT = "DEPOSIT"
+        const val LOAN_STATUS_ACTIVE = "ACTIVE"
+        const val LOAN_STATUS_PAID_OFF = "PAID_OFF"
     }
 }
 
@@ -75,6 +78,7 @@ data class MonthlyDueEntity(
     val amount: Double,
     @ColumnInfo(defaultValue = "0") val amountDeposit: Double = 0.0,
     @ColumnInfo(defaultValue = "0") val grandTotal: Double = 0.0,
+    @ColumnInfo(defaultValue = "0") val monthlyPaymentAmount: Double = 0.0,
     val isPaid: Boolean,
     val notes: String,
     val dueDate: Long,
@@ -83,6 +87,38 @@ data class MonthlyDueEntity(
 ) {
     /** Derived balance; never stored so the two amounts stay the source of truth. */
     val remaining: Double get() = (grandTotal - amountDeposit).coerceAtLeast(0.0)
+}
+
+@Entity(
+    tableName = "financial_transactions",
+    indices = [Index("ownerId"), Index("memberId"), Index("syncId", unique = true)],
+)
+data class FinancialTransactionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val ownerId: String,
+    val memberId: Long,
+    /** Stable Firestore IDs link transactions to a loan, monthly due or extra deposit. */
+    @ColumnInfo(defaultValue = "''") val loanSyncId: String = "",
+    @ColumnInfo(defaultValue = "''") val dueSyncId: String = "",
+    @ColumnInfo(defaultValue = "''") val parentSyncId: String = "",
+    val kind: String,
+    val amount: Double,
+    val date: Long,
+    val status: String,
+    val notes: String = "",
+    val createdAt: Long,
+    val updatedAt: Long,
+    @ColumnInfo(defaultValue = "''") val syncId: String = "",
+) {
+    companion object {
+        const val KIND_LOAN_REPAYMENT = "LOAN_REPAYMENT"
+        const val KIND_EXTRA_DEPOSIT = "EXTRA_DEPOSIT"
+        const val KIND_EXTRA_WITHDRAWAL = "EXTRA_WITHDRAWAL"
+        const val KIND_EXTRA_ALLOCATION = "EXTRA_ALLOCATION"
+        const val STATUS_PENDING = "PENDING"
+        const val STATUS_PAID = "PAID"
+        const val STATUS_CANCELLED = "CANCELLED"
+    }
 }
 
 @Entity(tableName = "history", indices = [Index("ownerId")])
