@@ -74,20 +74,13 @@ data class MonthlyDueEntity(
     val title: String,
     /** Bikram Sambat period label, for example `Kartik 2083 BS`. */
     val period: String,
-    /** Legacy due amount, kept in sync with [grandTotal] for older clients and history. */
     val amount: Double,
-    @ColumnInfo(defaultValue = "0") val amountDeposit: Double = 0.0,
-    @ColumnInfo(defaultValue = "0") val grandTotal: Double = 0.0,
-    @ColumnInfo(defaultValue = "0") val monthlyPaymentAmount: Double = 0.0,
     val isPaid: Boolean,
     val notes: String,
     val dueDate: Long,
     val updatedAt: Long,
     @ColumnInfo(defaultValue = "''") val syncId: String = "",
-) {
-    /** Derived balance; never stored so the two amounts stay the source of truth. */
-    val remaining: Double get() = (grandTotal - amountDeposit).coerceAtLeast(0.0)
-}
+)
 
 @Entity(
     tableName = "financial_transactions",

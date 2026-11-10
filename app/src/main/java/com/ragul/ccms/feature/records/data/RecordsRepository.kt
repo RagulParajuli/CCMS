@@ -194,7 +194,7 @@ class RecordsRepository(
                         it.dueSyncId == due.syncId && it.kind == FinancialTransactionEntity.KIND_LOAN_REPAYMENT &&
                             it.status == FinancialTransactionEntity.STATUS_PAID
                     }.sumOf { it.amount }
-                    val dueBalance = (due.monthlyPaymentAmount - paidForDue).coerceAtLeast(0.0)
+                    val dueBalance = (due.amount - paidForDue).coerceAtLeast(0.0)
                     require(transaction.amount <= dueBalance + 0.000001) {
                         "Payment exceeds the unpaid monthly amount. Record the extra as a separate deposit."
                     }

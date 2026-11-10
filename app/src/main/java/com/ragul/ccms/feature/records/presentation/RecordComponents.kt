@@ -38,11 +38,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-internal fun formatDate(value: Long): String =
-    SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(value))
+internal fun formatDate(value: Long): String {
+    val calendar = java.util.Calendar.getInstance().apply { timeInMillis = value }
+    return NepaliDate.fromAd(calendar.get(java.util.Calendar.YEAR), calendar.get(java.util.Calendar.MONTH) + 1, calendar.get(java.util.Calendar.DAY_OF_MONTH))?.format()
+        ?: "—"
+}
 
-internal fun formatDateTime(value: Long): String =
-    SimpleDateFormat("dd MMM yyyy, h:mm a", Locale.getDefault()).format(Date(value))
+internal fun formatDateTime(value: Long): String {
+    val calendar = java.util.Calendar.getInstance().apply { timeInMillis = value }
+    val bs = NepaliDate.fromAd(calendar.get(java.util.Calendar.YEAR), calendar.get(java.util.Calendar.MONTH) + 1, calendar.get(java.util.Calendar.DAY_OF_MONTH))
+    val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(value))
+    return if (bs != null) "${bs.format()}, $timeFormat" else timeFormat
+}
 
 internal fun formatBsDate(value: Long): String {
     val calendar = java.util.Calendar.getInstance().apply { timeInMillis = value }
@@ -53,8 +60,10 @@ internal fun formatBsDate(value: Long): String {
 internal fun formatAmount(value: Double): String =
     NumberFormat.getCurrencyInstance().format(value)
 
-internal fun currentPeriod(): String =
-    SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date())
+internal fun currentPeriod(): String {
+    val today = NepaliDate.today() ?: NepaliDate(2083, 1, 1)
+    return "${NepaliDate.monthName(today.month)} ${today.year} BS"
+}
 
 @Composable
 fun PageHeader(

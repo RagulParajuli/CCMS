@@ -25,12 +25,16 @@ internal class FirestoreRecordsSync(
 
     fun start() {
         scope.launch {
-            assignMissingIds()
-            listen("memberships", ::syncMemberships)
-            listen("loanDeposits", ::syncLoanDeposits)
-            listen("monthlyDues", ::syncMonthlyDues)
-            listen("financialTransactions", ::syncFinancialTransactions)
-            listen("history", ::syncHistory)
+            runCatching {
+                assignMissingIds()
+                listen("memberships", ::syncMemberships)
+                listen("loanDeposits", ::syncLoanDeposits)
+                listen("monthlyDues", ::syncMonthlyDues)
+                listen("financialTransactions", ::syncFinancialTransactions)
+                listen("history", ::syncHistory)
+            }.onFailure { error ->
+                Log.w(TAG, "Firestore sync start failed", error)
+            }
         }
         scope.coroutineContext[Job]?.invokeOnCompletion { close() }
     }
@@ -101,20 +105,24 @@ internal class FirestoreRecordsSync(
             if (snapshot == null) return@addSnapshotListener
 
             scope.launch {
-                snapshot.documentChanges.forEach { change ->
-                    val document = change.document
-                    if (change.type.name == "REMOVED") {
-                        removeRemote(collection, document.id)
-                    } else {
-                        reconcile(document)
+                runCatching {
+                    snapshot.documentChanges.forEach { change ->
+                        val document = change.document
+                        if (change.type.name == "REMOVED") {
+                            removeRemote(collection, document.id)
+                        } else {
+                            reconcile(document)
+                        }
                     }
-                }
 
-                // Wait for a server snapshot before treating absent documents as new local data.
-                // This avoids uploading an incomplete Firestore cache while offline.
-                if (!snapshot.metadata.isFromCache && serverInitialized.add(collection)) {
-                    reconcileAll(snapshot.documents)
-                    uploadLocalMissing(collection, snapshot.documents.mapTo(mutableSetOf()) { it.id })
+                    // Wait for a server snapshot before treating absent documents as new local data.
+                    // This avoids uploading an incomplete Firestore cache while offline.
+                    if (!snapshot.metadata.isFromCache && serverInitialized.add(collection)) {
+                        reconcileAll(snapshot.documents)
+                        uploadLocalMissing(collection, snapshot.documents.mapTo(mutableSetOf()) { it.id })
+                    }
+                }.onFailure { error ->
+                    Log.w(TAG, "Firestore reconciliation failed for $collection", error)
                 }
             }
         }
@@ -318,9 +326,6 @@ internal class FirestoreRecordsSync(
         "title" to title,
         "period" to period,
         "amount" to amount,
-        "amountDeposit" to amountDeposit,
-        "grandTotal" to grandTotal,
-        "monthlyPaymentAmount" to monthlyPaymentAmount,
         "isPaid" to isPaid,
         "notes" to notes,
         "dueDate" to dueDate,
@@ -397,9 +402,6 @@ internal class FirestoreRecordsSync(
             title = getString("title") ?: "",
             period = getString("period") ?: "",
             amount = amount,
-            amountDeposit = getDouble("amountDeposit") ?: getLong("amountDeposit")?.toDouble() ?: 0.0,
-            grandTotal = getDouble("grandTotal") ?: getLong("grandTotal")?.toDouble() ?: amount,
-            monthlyPaymentAmount = getDouble("monthlyPaymentAmount") ?: getLong("monthlyPaymentAmount")?.toDouble() ?: 0.0,
             isPaid = getBoolean("isPaid") ?: false,
             notes = getString("notes") ?: "",
             dueDate = getLong("dueDate") ?: 0L,

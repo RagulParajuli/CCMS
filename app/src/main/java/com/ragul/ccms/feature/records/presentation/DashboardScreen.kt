@@ -89,6 +89,7 @@ import com.ragul.ccms.feature.records.data.LoanDepositEntity
 import com.ragul.ccms.feature.records.data.MembershipEntity
 import com.ragul.ccms.feature.records.data.MonthlyDueEntity
 import com.ragul.ccms.feature.records.data.RecordCounts
+import com.ragul.ccms.feature.records.domain.NepaliDate
 import com.ragul.ccms.ui.theme.AuthPrimary
 import com.ragul.ccms.ui.theme.AuthPrimaryDark
 import com.ragul.ccms.ui.theme.DarkBlueColorScheme
@@ -180,7 +181,7 @@ fun DashboardContent(
     onSaveLoanDeposit: (LoanDepositEntity?, Long, Boolean, String, Double, Double, Double, String) -> Unit,
     onDeleteLoanDeposit: (LoanDepositEntity) -> Unit,
     onSaveFinancialTransaction: (FinancialTransactionEntity) -> Unit,
-    onSaveMonthlyDue: (MonthlyDueEntity?, Long, String, String, Double, Double, String) -> Unit,
+    onSaveMonthlyDue: (MonthlyDueEntity?, Long, String, String, Double, Boolean, String) -> Unit,
     onDeleteMonthlyDue: (MonthlyDueEntity) -> Unit,
     onClearHistory: () -> Unit,
     onMessageShown: () -> Unit,
@@ -264,10 +265,7 @@ fun DashboardContent(
                         DashboardSection.MONTHLY_DUE -> MonthlyDueSection(
                             monthlyDues = monthlyDues,
                             memberships = memberships,
-                            loans = loanDeposits.filter { it.isLoan },
-                            financialTransactions = financialTransactions,
                             onSave = onSaveMonthlyDue,
-                            onSaveTransaction = onSaveFinancialTransaction,
                             onDelete = onDeleteMonthlyDue,
                         )
 
@@ -719,7 +717,12 @@ private fun DashboardHome(
 @Composable
 private fun WelcomeCard(user: AuthUser) {
     val today = remember {
-        SimpleDateFormat("EEEE, dd MMMM", Locale.getDefault()).format(Date())
+        val bs = NepaliDate.today()
+        if (bs != null) {
+            "${NepaliDate.monthName(bs.month)} ${bs.day}, ${bs.year} BS"
+        } else {
+            "Nepali Calendar"
+        }
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
